@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>UV-5R Mini Programmer</title>
+<title>Baofeng Web-Based Programmer</title>
+<meta name="author" content="W9JES">
+<meta name="description" content="Program the Baofeng UV-5R Mini over Bluetooth from your browser. Created by W9JES.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
@@ -45,6 +47,10 @@ button, input, select { font: inherit; color: inherit; }
 header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding-block: 18px 4px; }
 header.top h1 { font-size: 30px; line-height: 1; }
 header.top h1 span { color: var(--accent); }
+.brand { display: grid; gap: 4px; }
+.byline { font-size: 13px; color: var(--muted); }
+.byline a, footer a { color: var(--accent); font-weight: 600; text-underline-offset: 2px; }
+.byline a { font-family: var(--f-mono); letter-spacing: .04em; }
 .lcd { font-family: var(--f-mono); background: var(--lcd); color: var(--lcd-ink); border-radius: 4px; padding: 6px 12px; display: flex; gap: 16px; align-items: baseline;
   box-shadow: inset 0 1px 3px rgba(0,0,0,.18); font-size: 13px; min-width: 0; flex-wrap: wrap; }
 .lcd b { font-weight: 500; letter-spacing: .06em; }
@@ -154,7 +160,7 @@ footer p { margin: 0; max-width: 90ch; }
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>UV-5R Mini <span>Programmer</span></h1>
+    <div class="brand"><h1>Baofeng <span>Web-Based Programmer</span></h1><div class="byline">For the UV-5R Mini · Created by <a href="https://www.qrz.com/db/W9JES" target="_blank" rel="noopener">W9JES</a></div></div>
     <span class="pill" id="connPill">Not connected</span>
     <div class="spacer"></div>
     <div class="lcd" aria-live="polite"><span>ID <b id="lcdModel">——————</b></span><span>CH <b id="lcdCount">000</b>/999</span><span id="lcdLink">NO LINK</span></div>
@@ -259,6 +265,7 @@ footer p { margin: 0; max-width: 90ch; }
   </section>
 
   <footer>
+    <p><b>Baofeng Web-Based Programmer</b>, created by <a href="https://www.qrz.com/db/W9JES" target="_blank" rel="noopener">W9JES</a>. Source and issues on <a href="https://github.com/drexjj/FengRadioProgrammer" target="_blank" rel="noopener">GitHub</a>.</p>
     <p>Clone protocol, memory layout and encryption follow CHIRP's <span class="mono">baofeng_uv17Pro</span> driver (UV5RMini class). Files saved here open in CHIRP as Baofeng UV-5R Mini, and CHIRP images open here.</p>
     <p>Web Bluetooth works in Chrome, Edge and Opera on desktop and Android. On iPhone use the Bluefy browser. The page must be served over HTTPS or from localhost.</p>
   </footer>
