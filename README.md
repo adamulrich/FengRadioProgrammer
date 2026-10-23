@@ -1,6 +1,6 @@
 # Baofeng Web-Based Programmer
 
-**Program your Baofeng UV-5R Mini from the browser, over Bluetooth.** Nothing to install, no drivers, no programming cable.
+**Program Baofeng radios from the browser.** Bluetooth for the UV-5R Mini and other Bluetooth models, a USB cable for the rest. Nothing to install.
 
 **▶ Open it: [drexjj.github.io/FengRadioProgrammer](https://drexjj.github.io/FengRadioProgrammer/)**
 
@@ -13,7 +13,7 @@
 Pair the radio, read it, edit everything in a CHIRP-style grid, and write it back. The flow works like the Meshtastic web flasher: you click **Bluetooth**, your browser shows a pairing window, and you pick the radio.
 
 - **Wireless programming** over the radio's built-in Bluetooth. A USB programming cable works too.
-- **All 999 channels**: name, RX/TX frequency, CTCSS/DCS tones, power, FM/NFM/AM, scan, busy-channel lockout, PTT ID, S-code, frequency hopping and RX DTMF.
+- **Every channel**: name, RX/TX frequency, CTCSS/DCS tones, power, FM/NFM/AM, scan, busy-channel lockout, PTT ID, S-code, frequency hopping and RX DTMF.
 - **VFO A and B**: frequency, shift, offset, tones, power, bandwidth and step.
 - **35+ radio settings**: squelch, beeps and voice, backlight, dual watch, battery save, timeout, VOX, repeater tone burst, tail elimination and more.
 - **DTMF**: ANI code and the 20 PTT ID signal codes.
@@ -26,14 +26,27 @@ Pair the radio, read it, edit everything in a CHIRP-style grid, and write it bac
 
 ### Radios
 
-| Radio | Status |
-|---|---|
-| Baofeng UV-5R Mini | ✅ Supported |
-| MINI-5 | Same hardware, likely works, not yet tested |
-| UV-5G Mini, UV-32, UV-25 and other UV-17Pro family radios | Not yet. These need their own memory profile |
-| UV-5R (classic), UV-6R | Not planned. They use an older, cable-only protocol |
+Pick your radio from the **Radio model** list before connecting.
 
-Only write to a radio listed as supported. Other models may answer the same handshake but store their memory differently, so writing to them could scramble their settings.
+| Radio | Connection | Status |
+|---|---|---|
+| UV-5R Mini, MINI-5 | Bluetooth or USB | ✅ Tested on a real radio |
+| UV-5G Mini | Bluetooth or USB | Experimental. GMRS channels 1–30 keep their fixed frequencies |
+| UV-28Plus | Bluetooth or USB | Experimental |
+| UV-17Pro, UV-17Pro GPS, UV-17R Plus | USB cable | Experimental |
+| UV-25 / UV-25 Pro, UV-32 / UV-32 Pro | USB cable | Experimental |
+| UV-21Pro V2, UV-21Pro GPS | USB cable | Experimental |
+| 5RM, UV-5RM Plus, UV-5RH, K6, BF-F8HP Pro | USB cable | Experimental |
+| UV-5R (and UV-5X, UV-5R EX, UV-5R Pro, UV-5XP, RT5R, A-5R) | USB cable, 9600 baud | Experimental |
+| BF-F8HP, UV-82 / UV-82 Pro, UV-82HP | USB cable, 9600 baud | Experimental |
+
+**Experimental** means the model's memory layout, settings and clone protocol come straight from CHIRP's driver and are checked byte for byte against CHIRP, but nobody has tested this programmer on that radio yet. Read first, save a backup `.img`, and please report how it went in a [GitHub issue](https://github.com/drexjj/FengRadioProgrammer/issues).
+
+As a safety check, the programmer refuses to write when the connected radio identifies as a different model from the one selected (for example a UV-5R Mini while UV-32 is selected), or when it isn't the radio you read.
+
+The USB models need a Baofeng programming cable (the two-pin K-plug type). On Windows, install the cable's driver first (usually CH340 or Prolific).
+
+Not supported: UV-6R, UV-19 BT and GMRS-only models such as GM-5RH and GM-30.
 
 ### Browsers
 
@@ -50,12 +63,13 @@ The USB cable option uses Web Serial and needs Chrome or Edge on a desktop compu
 
 ## How to program your radio
 
-1. **Turn on Bluetooth in the radio.** Open the radio menu, switch Bluetooth on, and return to the main screen.
-2. **Connect.** Open the programmer and click **Bluetooth**. Pick the radio from the pairing window; it usually shows up as `walkie-talkie`.
-3. **Read.** Click **Read from radio**. A full read takes about 30 seconds over Bluetooth.
-4. **Save a backup.** Click **Save .img** before you change anything.
-5. **Edit** channels, VFO, settings and DTMF. Changed rows are highlighted.
-6. **Write.** Click **Write to radio** and confirm. Keep the radio close and switched on until it finishes, about 20 seconds.
+1. **Choose your radio model** from the list.
+2. **Get the radio ready.** For Bluetooth, open the radio menu, switch Bluetooth on, and return to the main screen. For a USB cable, plug it firmly into the radio and turn the radio on with the volume up.
+3. **Connect.** Click **Bluetooth** and pick the radio from the pairing window (it usually shows up as `walkie-talkie`), or click **USB cable** and pick the cable's port.
+4. **Read.** Click **Read from radio**. A full read takes about 30 seconds over Bluetooth and 15–30 seconds over USB.
+5. **Save a backup.** Click **Save .img** before you change anything.
+6. **Edit** channels, VFO, settings and DTMF. Changed rows are highlighted.
+7. **Write.** Click **Write to radio** and confirm. Keep the radio close and switched on until it finishes, about 20 seconds.
 
 ## Troubleshooting
 
@@ -67,14 +81,12 @@ The USB cable option uses Web Serial and needs Chrome or Edge on a desktop compu
 
 ## How it works
 
-The radio's Bluetooth module is a serial bridge (characteristic `FFE1`). The page speaks the same clone protocol as the USB cable:
+The radio's Bluetooth module is a serial bridge (characteristic `FFE1`), so Bluetooth and the USB cable carry the same clone protocol. The programmer has two protocol engines:
 
-- The `PROGRAMCOLORPROU` handshake, followed by the identify commands. The UV-5R Mini reports itself as `5RMINI`.
-- 64-byte block reads, 128-byte block writes over Bluetooth (64-byte over USB), each acknowledged with `0x06`.
-- The radio's XOR data encryption.
-- Three memory regions: channels at `0x0000`, settings at `0x9000`, DTMF and ANI at `0xA000`.
+- **UV-17Pro family** (UV-5R Mini, UV-17Pro, UV-25, UV-32, K6 and others), ported from CHIRP's `baofeng_uv17Pro.py`: a 16-character handshake such as `PROGRAMCOLORPROU`, 64-byte block reads, 64- or 128-byte block writes, and XOR data encryption, at 115200 baud.
+- **Classic UV-5R family** (UV-5R, BF-F8HP, UV-82), ported from CHIRP's `uv5r.py`: a 7-byte magic handshake sent byte by byte, `S`/`X` block commands at 9600 baud, and CHIRP's firmware and aux-memory checks before writing.
 
-The protocol, memory layout and encryption are ported from the [CHIRP](https://chirpmyradio.com) driver `baofeng_uv17Pro.py` (the `UV5RMini` class). The decoder was checked against CHIRP's own UV-5R Mini test image.
+Each model is a profile generated from its CHIRP driver: memory regions, channel layout, power levels, bands, and a byte-level table for every setting found by having CHIRP apply each option and recording what changed. The decoders and encoders are tested against CHIRP's own sample images for every model, and every model completes a read and write against a simulated radio.
 
 ## Disclaimer
 
@@ -83,7 +95,7 @@ This is a hobby project, not affiliated with Baofeng or CHIRP. Always save a bac
 ## Credits
 
 - Created by **W9JES**.
-- Radio protocol knowledge from the [CHIRP project](https://github.com/kk7ds/chirp) and its contributors.
+- Radio protocols, memory layouts and settings from the [CHIRP project](https://github.com/kk7ds/chirp) and its contributors.
 
 ## License
 
