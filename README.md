@@ -4,8 +4,6 @@
 
 **▶ Open it: [drexjj.github.io/FengRadioProgrammer](https://drexjj.github.io/FengRadioProgrammer/)**
 
-Created by [W9JES](https://www.qrz.com/db/W9JES).
-
 ![Baofeng Web-Based Programmer showing the channel grid](docs/screenshot.png)
 
 ---
