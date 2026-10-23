@@ -1,0 +1,1188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UV-5R Mini Programmer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one working column — connect/clone strip on top, tabbed editor below, CHIRP-style grid for channels */
+:root {
+  --bg: #eef2f0; --panel: #ffffff; --sunk: #f6f8f7; --ink: #15201d; --muted: #5b6965; --line: #d3dcd8;
+  --accent: #0b7a63; --accent-ink: #ffffff; --accent-soft: #dbefe8;
+  --lcd: #d5e4b8; --lcd-ink: #22331a; --warn: #a3520b; --warn-soft: #fbecd9; --bad: #b42318; --bad-soft: #fde4e1; --ok: #1d7a3a;
+  --dirty: #fff3c4;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1514; --panel: #162020; --sunk: #121a19; --ink: #e2ebe7; --muted: #93a49e; --line: #2a3835;
+  --accent: #3cc7a3; --accent-ink: #062019; --accent-soft: #163a31;
+  --lcd: #1d2a17; --lcd-ink: #b9e07c; --warn: #f0a356; --warn-soft: #3a2a17; --bad: #ff8a7d; --bad-soft: #3d1c19; --ok: #6fd08c;
+  --dirty: #3a3415; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1514; --panel: #162020; --sunk: #121a19; --ink: #e2ebe7; --muted: #93a49e; --line: #2a3835;
+  --accent: #3cc7a3; --accent-ink: #062019; --accent-soft: #163a31;
+  --lcd: #1d2a17; --lcd-ink: #b9e07c; --warn: #f0a356; --warn-soft: #3a2a17; --bad: #ff8a7d; --bad-soft: #3d1c19; --ok: #6fd08c;
+  --dirty: #3a3415; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; }
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+
+/* top bar */
+header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding-block: 18px 4px; }
+header.top h1 { font-size: 30px; line-height: 1; }
+header.top h1 span { color: var(--accent); }
+.lcd { font-family: var(--f-mono); background: var(--lcd); color: var(--lcd-ink); border-radius: 4px; padding: 6px 12px; display: flex; gap: 16px; align-items: baseline;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.18); font-size: 13px; min-width: 0; flex-wrap: wrap; }
+.lcd b { font-weight: 500; letter-spacing: .06em; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); background: var(--panel); }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.on::before { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+.pill.busy::before { background: var(--warn); animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .pill.busy::before { animation: none; } }
+.spacer { flex: 1; }
+
+/* buttons */
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 8px 14px; cursor: pointer; font-weight: 500; display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { background: var(--bad); color: #fff; border-color: var(--bad); }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+.link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 2px; }
+.btn svg { width: 16px; height: 16px; flex: none; }
+
+/* clone strip (flasher-style steps) */
+.strip { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.step { padding: 16px 18px; display: grid; gap: 10px; align-content: start; border-left: 1px solid var(--line); min-width: 0; }
+.step:first-child { border-left: 0; }
+.step .head { display: flex; gap: 10px; align-items: center; }
+.step .num { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 600 13px var(--f-mono); border: 1.5px solid var(--line); color: var(--muted); flex: none; }
+.step.done .num { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.step.current .num { border-color: var(--accent); color: var(--accent); }
+.step h2 { font-size: 20px; }
+.step p { margin: 0; color: var(--muted); font-size: 13px; }
+.step .row { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 900px) { .strip { grid-template-columns: 1fr 1fr; } .step:nth-child(3) { border-left: 0; } .step:nth-child(n+3) { border-top: 1px solid var(--line); } }
+@media (max-width: 520px) { .strip { grid-template-columns: 1fr; } .step { border-left: 0; } .step + .step { border-top: 1px solid var(--line); } }
+
+.progress { height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; border: 1px solid var(--line); }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+.notice { border-radius: 8px; padding: 10px 14px; font-size: 13px; border: 1px solid var(--line); background: var(--sunk); }
+.notice.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.notice.bad { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.notice b { font-weight: 600; }
+
+/* confirm panel */
+.confirm { background: var(--panel); border: 2px solid var(--bad); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; }
+.confirm h3 { font-size: 20px; }
+
+/* editor */
+.editor { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); overflow-x: auto; align-items: end; }
+.tab { border: 0; background: none; padding: 10px 14px; cursor: pointer; font: 600 16px var(--f-display); letter-spacing: .03em; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab .count { font: 500 11px var(--f-mono); background: var(--sunk); border: 1px solid var(--line); padding: 1px 6px; border-radius: 9px; margin-left: 6px; color: var(--muted); }
+.tabs .src { margin-left: auto; padding: 0 6px 10px; font-size: 12px; white-space: nowrap; }
+.pane { padding: 14px; display: grid; gap: 12px; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.toolbar label { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.toolbar input[type=search] { border: 1px solid var(--line); background: var(--sunk); border-radius: 6px; padding: 6px 10px; width: 200px; max-width: 100%; }
+.pages { display: flex; flex-wrap: wrap; gap: 4px; }
+.pages button { border: 1px solid var(--line); background: var(--sunk); border-radius: 5px; padding: 3px 8px; font: 500 12px var(--f-mono); cursor: pointer; }
+.pages button[aria-current="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.pages button.has::after { content: "•"; margin-left: 3px; color: var(--accent); }
+.pages button[aria-current="true"].has::after { color: var(--accent-ink); }
+
+.grid-wrap { overflow: auto; max-height: 68vh; border: 1px solid var(--line); border-radius: 8px; }
+table.grid { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+.grid th { position: sticky; top: 0; z-index: 2; background: var(--sunk); text-align: left; padding: 8px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border-bottom: 1px solid var(--line); white-space: nowrap; font-weight: 600; }
+.grid td { border-bottom: 1px solid var(--line); padding: 2px 3px; white-space: nowrap; background: var(--panel); }
+.grid tr.empty td { background: var(--sunk); }
+.grid tr.empty td:not(:first-child):not(.rxcell) > * { opacity: .35; }
+.grid tr.dirty td:first-child { box-shadow: inset 4px 0 0 var(--warn); }
+.grid tr.dirty td { background: var(--dirty); }
+.grid td:first-child { position: sticky; left: 0; z-index: 1; font: 500 12px var(--f-mono); color: var(--muted); text-align: right; padding-right: 8px; min-width: 44px; }
+.grid input[type=text], .grid select { border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 5px 6px; width: 100%; }
+.grid input[type=text]:hover, .grid select:hover { border-color: var(--line); }
+.grid input[type=text]:focus { border-color: var(--accent); background: var(--panel); outline: none; }
+.grid input.bad { border-color: var(--bad); background: var(--bad-soft); }
+.grid .f { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.grid .w-name { width: 128px; } .grid .w-freq { width: 104px; } .grid .w-tone { width: 78px; } .grid .w-sel { width: 76px; }
+.grid td.c { text-align: center; }
+.shift { font: 12px var(--f-mono); color: var(--muted); padding: 0 6px; }
+.shift.split, .shift.rxonly { color: var(--warn); }
+.x { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 4px 6px; border-radius: 4px; }
+.x:hover { color: var(--bad); background: var(--bad-soft); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px 14px; margin: 0; display: grid; gap: 8px; min-width: 0; }
+legend { font: 600 17px var(--f-display); padding: 0 6px; letter-spacing: .02em; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 160px); gap: 10px; align-items: center; }
+.field label { font-size: 13px; }
+.field select, .field input[type=text] { border: 1px solid var(--line); background: var(--sunk); border-radius: 6px; padding: 6px 8px; width: 100%; }
+.field input[type=checkbox] { justify-self: start; width: 18px; height: 18px; accent-color: var(--accent); }
+.field.dirty label::after { content: " •"; color: var(--warn); font-weight: 700; }
+input[type=checkbox] { accent-color: var(--accent); }
+
+.log { font: 12px/1.6 var(--f-mono); background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; max-height: 60vh; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 0; }
+.log .e { color: var(--bad); } .log .o { color: var(--ok); }
+details.adv { font-size: 13px; }
+details.adv summary { cursor: pointer; color: var(--muted); }
+details.adv .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+details.adv input[type=number] { width: 80px; border: 1px solid var(--line); background: var(--sunk); border-radius: 5px; padding: 4px 6px; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 13px; max-width: calc(100% - 32px); z-index: 50; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+footer { font-size: 12px; color: var(--muted); display: grid; gap: 4px; }
+footer p { margin: 0; max-width: 90ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>UV-5R Mini <span>Programmer</span></h1>
+    <span class="pill" id="connPill">Not connected</span>
+    <div class="spacer"></div>
+    <div class="lcd" aria-live="polite"><span>ID <b id="lcdModel">——————</b></span><span>CH <b id="lcdCount">000</b>/999</span><span id="lcdLink">NO LINK</span></div>
+  </header>
+
+  <div id="support" class="notice warn" hidden></div>
+
+  <section class="strip" aria-label="Clone steps">
+    <div class="step current" id="st1">
+      <div class="head"><span class="num">1</span><h2>Connect</h2></div>
+      <p>Turn Bluetooth on in the radio menu, leave it on the main screen, then pair from here.</p>
+      <div class="row">
+        <button class="btn primary" id="btnBle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>Bluetooth</button>
+        <button class="btn" id="btnUsb">USB cable</button>
+      </div>
+      <button class="link" id="btnDemo" type="button">Try with a simulated radio</button>
+    </div>
+    <div class="step" id="st2">
+      <div class="head"><span class="num">2</span><h2>Read</h2></div>
+      <p>Downloads all 999 channels and settings. Takes about 30 seconds over Bluetooth.</p>
+      <div class="row"><button class="btn" id="btnRead" disabled>Read from radio</button></div>
+    </div>
+    <div class="step" id="st3">
+      <div class="head"><span class="num">3</span><h2>Edit</h2></div>
+      <p>Change channels below, or open a CHIRP <span class="mono">.img</span> or CSV file.</p>
+      <div class="row">
+        <button class="btn small" id="btnOpen">Open file</button>
+        <button class="btn small" id="btnSave">Save .img</button>
+        <button class="btn small" id="btnCsv">Export CSV</button>
+      </div>
+      <input type="file" id="fileIn" accept=".img,.csv,application/octet-stream,text/csv" hidden>
+    </div>
+    <div class="step" id="st4">
+      <div class="head"><span class="num">4</span><h2>Write</h2></div>
+      <p id="writeHint">Read from the radio first, so you have a backup of what is on it.</p>
+      <div class="row"><button class="btn" id="btnWrite" disabled>Write to radio</button></div>
+    </div>
+  </section>
+
+  <div id="progWrap" hidden style="display:grid;gap:6px">
+    <div style="display:flex;justify-content:space-between;gap:12px;font-size:13px"><span id="progLabel">Working…</span><span class="mono" id="progPct">0%</span></div>
+    <div class="progress"><i id="progBar"></i></div>
+  </div>
+  <div id="errBox" class="notice bad" hidden></div>
+
+  <section class="confirm" id="confirm" hidden>
+    <h3>Write to the radio?</h3>
+    <div id="confirmText"></div>
+    <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn danger" id="btnConfirmWrite">Write to radio</button>
+      <button class="btn" id="btnBackup">Save backup first</button>
+      <button class="btn" id="btnCancelWrite">Cancel</button>
+    </div>
+  </section>
+
+  <section class="editor">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="channels" aria-selected="true">Channels<span class="count" id="tabCount">0</span></button>
+      <button class="tab" role="tab" data-tab="vfo" aria-selected="false">VFO</button>
+      <button class="tab" role="tab" data-tab="settings" aria-selected="false">Settings</button>
+      <button class="tab" role="tab" data-tab="dtmf" aria-selected="false">DTMF</button>
+      <button class="tab" role="tab" data-tab="log" aria-selected="false">Log</button>
+      <span class="src muted" id="srcLabel"></span>
+    </div>
+
+    <div class="pane" data-pane="channels">
+      <div class="toolbar">
+        <label><input type="checkbox" id="showEmpty"> Show empty slots</label>
+        <input type="search" id="search" placeholder="Find name or MHz" aria-label="Find channel">
+        <div class="spacer"></div>
+        <div class="pages" id="pages" aria-label="Channel range"></div>
+      </div>
+      <div class="grid-wrap">
+        <table class="grid" id="grid">
+          <thead><tr>
+            <th>CH</th><th>Name</th><th>RX MHz</th><th>TX MHz</th><th>Shift</th><th title="Decode: CTCSS Hz or DCS like D023N">RX tone</th><th title="Encode: CTCSS Hz or DCS like D023N">TX tone</th>
+            <th>Power</th><th>Mode</th><th title="Include in scan">Scan</th><th title="Busy channel lockout">BCL</th><th>PTT ID</th><th title="Signal code used for PTT ID">S-code</th><th title="Frequency hopping">FHSS</th><th title="Open squelch on DTMF">RX DTMF</th><th></th>
+          </tr></thead>
+          <tbody id="gridBody"></tbody>
+        </table>
+      </div>
+      <p class="muted" style="margin:0;font-size:12px">TX accepts an absolute frequency, a shift such as <span class="mono">+0.6</span> or <span class="mono">-5</span>, or <span class="mono">off</span> for receive-only. Tones take <span class="mono">100.0</span>, <span class="mono">D023N</span> or <span class="mono">D023I</span>; leave blank for none. Type a frequency into an empty slot to create a channel.</p>
+    </div>
+
+    <div class="pane" data-pane="vfo" hidden><div class="cards" id="vfoCards"></div></div>
+    <div class="pane" data-pane="settings" hidden><div class="cards" id="settingsCards"></div></div>
+    <div class="pane" data-pane="dtmf" hidden><div class="cards" id="dtmfCards"></div></div>
+    <div class="pane" data-pane="log" hidden>
+      <div class="toolbar"><button class="btn small" id="btnCopyLog">Copy log</button><button class="btn small" id="btnClearLog">Clear</button></div>
+      <pre class="log" id="log"></pre>
+      <details class="adv">
+        <summary>Bluetooth tuning</summary>
+        <div class="grid2">
+          <label>Write chunk (bytes) <input type="number" id="optChunk" min="16" max="244" value="20"></label>
+          <label>Delay between chunks (ms) <input type="number" id="optDelay" min="0" max="100" value="0"></label>
+          <label><input type="checkbox" id="optAll"> Show every nearby device when pairing</label>
+          <label><input type="checkbox" id="optResp"> Use acknowledged writes</label>
+        </div>
+        <p class="muted">Defaults match the ble-serial bridge CHIRP users run. Raise the chunk size for faster writes if your browser negotiates a larger MTU; drop back to 20 if blocks get rejected.</p>
+      </details>
+    </div>
+  </section>
+
+  <footer>
+    <p>Clone protocol, memory layout and encryption follow CHIRP's <span class="mono">baofeng_uv17Pro</span> driver (UV5RMini class). Files saved here open in CHIRP as Baofeng UV-5R Mini, and CHIRP images open here.</p>
+    <p>Web Bluetooth works in Chrome, Edge and Opera on desktop and Android. On iPhone use the Bluefy browser. The page must be served over HTTPS or from localhost.</p>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<datalist id="tones"></datalist>
+
+<script>
+// ===== UV-5R Mini codec + clone protocol (ported from CHIRP baofeng_uv17Pro.py, UV5RMini) =====
+const MINI = (() => {
+  const MEM_TOTAL = 0x8240;
+  const REGIONS = [[0x0000, 0x8040], [0x9000, 0x0040], [0xA000, 0x01C0]];
+  const READ_BLOCK = 0x40, BLE_WRITE_BLOCK = 0x80, USB_WRITE_BLOCK = 0x40;
+  const CHANNELS = 999, CH_SIZE = 32;
+  const IDENT = 'PROGRAMCOLORPROU';
+  const MAGICS = [
+    [[0x46], 16],
+    [[0x4d], 15],
+    [[0x53,0x45,0x4E,0x44,0x21,0x05,0x0D,0x01,0x01,0x01,0x04,0x11,0x08,0x05,0x0D,0x0D,0x01,0x11,0x0F,0x09,0x12,0x09,0x10,0x04,0x00], 1],
+  ];
+  const IMG_MAGIC = [0x00,0xff,0x63,0x68,0x69,0x72,0x70,0xee,0x69,0x6d,0x67,0x00,0x01]; // \x00\xffchirp\xeeimg\x00\x01
+  const CTCSS = [67.0,69.3,71.9,74.4,77.0,79.7,82.5,85.4,88.5,91.5,94.8,97.4,100.0,103.5,107.2,110.9,114.8,118.8,123.0,127.3,131.8,136.5,141.3,146.2,151.4,156.7,159.8,162.2,165.5,167.9,171.3,173.8,177.3,179.9,183.5,186.2,189.9,192.8,196.6,199.5,203.5,206.5,210.7,218.1,225.7,229.1,233.6,241.8,250.3,254.1];
+  const DCS = [23,25,26,31,32,36,43,47,51,53,54,65,71,72,73,74,114,115,116,122,125,131,132,134,143,145,152,155,156,162,165,172,174,205,212,223,225,226,243,244,245,246,251,252,255,261,263,265,266,271,274,306,311,315,325,331,332,343,346,351,356,364,365,371,411,412,413,423,431,432,445,446,452,454,455,462,464,465,466,503,506,516,523,526,532,546,565,606,612,624,627,631,632,645,654,662,664,703,712,723,731,732,734,743,754];
+  const RX_BANDS = [[108e6,136e6],[136e6,174e6],[350e6,390e6],[400e6,480e6],[480e6,520e6]];
+  const AIRBAND = [108e6, 136e6];
+  const POWER = ['High (5 W)', 'Low (1 W)'];
+  const PTTID = ['Off','BOT','EOT','Both'];
+  const SCODES = Array.from({length:20},(_,i)=>String(i+1));
+  const DTMF = '0123456789ABCD*#';
+  const SYM = [0x43,0x4F,0x20,0x37]; // "CO 7"
+
+  function crypt(buf) {
+    const out = new Uint8Array(buf.length);
+    for (let i = 0; i < buf.length; i++) {
+      const s = SYM[i % 4], b = buf[i];
+      out[i] = (s !== 32 && b !== 0 && b !== 255 && b !== s && b !== (s ^ 255)) ? (b ^ s) : b;
+    }
+    return out;
+  }
+
+  // ---- little-endian BCD ----
+  function lbcdGet(m, o, n) { let v = 0; for (let i = n - 1; i >= 0; i--) { const b = m[o+i]; v = v*100 + (b>>4)*10 + (b&15); } return v; }
+  function lbcdSet(m, o, n, v) { v = Math.round(v); for (let i = 0; i < n; i++) { const d = v % 100; m[o+i] = (Math.floor(d/10)<<4)|(d%10); v = Math.floor(v/100); } }
+  const u16 = (m,o) => m[o] | (m[o+1]<<8);
+  const setU16 = (m,o,v) => { m[o]=v&255; m[o+1]=(v>>8)&255; };
+
+  function decodeTone(v) {
+    if (v === 0 || v === 0xFFFF) return { t: 'none' };
+    if (v >= 0x258) return { t: 'ctcss', v: v / 10 };
+    if (v > 0x69) return { t: 'dcs', v: DCS[v - 0x6A], pol: 'I' };
+    return { t: 'dcs', v: DCS[v - 1], pol: 'N' };
+  }
+  function encodeTone(t) {
+    if (!t || t.t === 'none') return 0;
+    if (t.t === 'ctcss') return Math.round(t.v * 10);
+    const i = DCS.indexOf(t.v); if (i < 0) throw new Error('Bad DCS ' + t.v);
+    return t.pol === 'I' ? i + 1 + 0x69 : i + 1;
+  }
+  function toneStr(t) {
+    if (!t || t.t === 'none') return '';
+    if (t.t === 'ctcss') return t.v.toFixed(1);
+    return 'D' + String(t.v).padStart(3,'0') + (t.pol || 'N');
+  }
+  function parseTone(s) {
+    s = String(s || '').trim().toUpperCase();
+    if (!s || s === 'OFF' || s === 'NONE') return { t: 'none' };
+    let m = s.match(/^D?(\d{3})([NI])$/) || s.match(/^D(\d{2,3})$/);
+    if (m) { const v = parseInt(m[1],10); if (!DCS.includes(v)) throw new Error(`DCS code ${m[1]} is not supported`); return { t:'dcs', v, pol: m[2] || 'N' }; }
+    const f = parseFloat(s);
+    if (!isNaN(f)) { const hit = CTCSS.find(x => Math.abs(x - f) < 0.05); if (hit === undefined) throw new Error(`${s} Hz is not a standard CTCSS tone`); return { t:'ctcss', v: hit }; }
+    throw new Error(`Can't read tone "${s}". Use e.g. 100.0, D023N or D023I`);
+  }
+
+  const inBands = (f, bands) => bands.some(([a,b]) => f >= a && f < b);
+
+  function decodeChannel(img, n) {
+    const o = (n - 1) * CH_SIZE, m = img;
+    if (m[o] === 0xFF) return { n, empty: true };
+    const rx = lbcdGet(m, o, 4) * 10;
+    const txRaw = m.slice(o+4, o+8);
+    const txinh = txRaw.every(b => b === 0xFF) || txRaw.every(b => b === 0);
+    const b14 = m[o+14], b15 = m[o+15];
+    let name = '';
+    for (let i = 0; i < 12; i++) { const c = m[o+20+i]; if (c === 0xFF || c === 0) name += ' '; else name += String.fromCharCode(c); }
+    const wide = (b15 >> 6) & 1;
+    let mode = wide ? 'NFM' : 'FM';
+    if (inBands(rx, [AIRBAND])) mode = 'AM';
+    return {
+      n, empty: false, rx, tx: txinh ? null : lbcdGet(m, o+4, 4) * 10,
+      rxTone: decodeTone(u16(m, o+8)), txTone: decodeTone(u16(m, o+10)),
+      scode: m[o+12] % 20, pttid: m[o+13] & 3,
+      power: (b14 & 3) >= POWER.length ? 0 : (b14 & 3),
+      mode, sqmode: ((b15 >> 4) & 3) ? 1 : 0, bcl: (b15 >> 3) & 1, scan: (b15 >> 2) & 1, fhss: b15 & 1,
+      name: name.replace(/\s+$/, ''),
+    };
+  }
+
+  function encodeChannel(img, ch) {
+    const o = (ch.n - 1) * CH_SIZE, m = img;
+    if (ch.empty) { m.fill(0xFF, o, o + CH_SIZE); return; }
+    m.fill(0x00, o, o + 16); m.fill(0xFF, o + 16, o + 32);
+    for (let i = 0; i < 12 && i < ch.name.length; i++) m[o+20+i] = ch.name.charCodeAt(i) & 0x7F;
+    lbcdSet(m, o, 4, ch.rx / 10);
+    if (ch.tx == null) m.fill(0xFF, o+4, o+8); else lbcdSet(m, o+4, 4, ch.tx / 10);
+    setU16(m, o+8, encodeTone(ch.rxTone));
+    setU16(m, o+10, encodeTone(ch.txTone));
+    m[o+12] = ch.scode; m[o+13] = ch.pttid;
+    m[o+14] = ch.power & 3;
+    m[o+15] = ((ch.mode === 'NFM' ? 1 : 0) << 6) | ((ch.sqmode ? 1 : 0) << 4) | ((ch.bcl ? 1 : 0) << 3) | ((ch.scan ? 1 : 0) << 2) | (ch.fhss ? 1 : 0);
+  }
+
+  // CHIRP-style tone mode decomposition (for CSV interchange)
+  function toChirpTones(ch) {
+    const tx = ch.txTone, rx = ch.rxTone;
+    const r = { Tone: '', rToneFreq: '88.5', cToneFreq: '88.5', DtcsCode: '023', DtcsPolarity: 'NN', RxDtcsCode: '023', CrossMode: 'Tone->Tone' };
+    const p3 = v => String(v).padStart(3, '0');
+    if (tx.t === 'none' && rx.t === 'none') return r;
+    if (tx.t === 'ctcss' && rx.t === 'none') { r.Tone = 'Tone'; r.rToneFreq = tx.v.toFixed(1); return r; }
+    if (tx.t === 'ctcss' && rx.t === 'ctcss' && tx.v === rx.v) { r.Tone = 'TSQL'; r.cToneFreq = tx.v.toFixed(1); r.rToneFreq = tx.v.toFixed(1); return r; }
+    if (tx.t === 'dcs' && rx.t === 'dcs' && tx.v === rx.v) { r.Tone = 'DTCS'; r.DtcsCode = r.RxDtcsCode = p3(tx.v); r.DtcsPolarity = tx.pol + rx.pol; return r; }
+    r.Tone = 'Cross';
+    const nm = t => t.t === 'ctcss' ? 'Tone' : t.t === 'dcs' ? 'DTCS' : '';
+    r.CrossMode = nm(tx) + '->' + nm(rx);
+    if (tx.t === 'ctcss') r.rToneFreq = tx.v.toFixed(1);
+    if (rx.t === 'ctcss') r.cToneFreq = rx.v.toFixed(1);
+    if (tx.t === 'dcs') r.DtcsCode = p3(tx.v);
+    if (rx.t === 'dcs') r.RxDtcsCode = p3(rx.v);
+    r.DtcsPolarity = (tx.t === 'dcs' ? tx.pol : 'N') + (rx.t === 'dcs' ? rx.pol : 'N');
+    return r;
+  }
+  function fromChirpTones(row) {
+    const mode = row.Tone || '', pol = (row.DtcsPolarity || 'NN').toUpperCase();
+    const pr = p => p === 'R' || p === 'I' ? 'I' : 'N';
+    const ct = f => ({ t: 'ctcss', v: parseTone(f).v });
+    const dc = (c, p) => ({ t: 'dcs', v: parseInt(c, 10), pol: pr(p) });
+    const none = { t: 'none' };
+    if (mode === 'Tone') return { tx: ct(row.rToneFreq), rx: none };
+    if (mode === 'TSQL') return { tx: ct(row.cToneFreq), rx: ct(row.cToneFreq) };
+    if (mode === 'DTCS') return { tx: dc(row.DtcsCode, pol[0]), rx: dc(row.RxDtcsCode || row.DtcsCode, pol[1]) };
+    if (mode === 'Cross') {
+      const [a, b] = (row.CrossMode || 'Tone->Tone').split('->');
+      return {
+        tx: a === 'Tone' ? ct(row.rToneFreq) : a === 'DTCS' ? dc(row.DtcsCode, pol[0]) : none,
+        rx: b === 'Tone' ? ct(row.cToneFreq) : b === 'DTCS' ? dc(row.RxDtcsCode, pol[1]) : none,
+      };
+    }
+    return { tx: none, rx: none };
+  }
+
+  // ---- settings (image offsets; settings struct at 0x8040) ----
+  const S = 0x8040;
+  const rng = (a, b, s, f) => { const r = []; for (let x = a; x <= b; x += s) r.push(f(x)); return r; };
+  const OFFON = ['Off', 'On'];
+  const SETTINGS = [
+    ['Audio & display', [
+      ['squelch', 'Squelch level', S+0, ['Off','1','2','3','4','5']],
+      ['beep', 'Key beep', S+6, OFFON],
+      ['voicesw', 'Voice prompts', S+7, 'bool'],
+      ['voice', 'Voice language', S+8, ['English','Chinese']],
+      ['roger', 'Roger beep', S+23, 'bool'],
+      ['sidetone', 'Side tone', S+9, ['Off','KB Side Tone','ANI Side Tone','KB + ANI Side Tone']],
+      ['backlight', 'Backlight timer', S+3, ['Always On','5 sec','10 sec','15 sec','20 sec']],
+      ['powerondistype', 'Power-on display', S+28, ['LOGO','BATT voltage']],
+      ['chadistype', 'Channel A display', S+13, ['Name','Frequency','Channel Number']],
+      ['chbdistype', 'Channel B display', S+14, ['Name','Frequency','Channel Number']],
+      ['menuquittime', 'Menu quit timer', S+33, [...rng(5,50,5,x=>x+' sec'), '60 sec']],
+      ['rstmenu', 'Allow menu reset', S+55, 'bool'],
+    ]],
+    ['Operation', [
+      ['chaworkmode', 'Channel A work mode', [S+26, 'lo'], ['Frequency','Channel']],
+      ['chbworkmode', 'Channel B work mode', [S+26, 'hi'], ['Frequency','Channel']],
+      ['dualstandby', 'Dual watch', S+4, OFFON],
+      ['savemode', 'Battery save', S+1, OFFON],
+      ['tot', 'Transmit timeout', S+5, ['Off', ...rng(15,180,15,x=>x+' sec')]],
+      ['totalarm', 'Timeout pre-alarm', S+40, ['Off', ...rng(1,10,1,x=>x+' sec')]],
+      ['scanmode', 'Scan resume', S+10, ['Time','Carrier','Search']],
+      ['ctsdcsscantype', 'QT save mode', S+43, ['Both','RX','TX']],
+      ['autolock', 'Keypad auto lock', S+16, 'bool'],
+      ['keylock', 'Keypad locked', S+27, 'bool'],
+      ['fmenable', 'Disable FM broadcast radio', S+25, 'bool'],
+      ['bluetooth', 'Bluetooth (menu setting)', S+34, 'bool'],
+    ]],
+    ['VOX & tones', [
+      ['voxsw', 'VOX on', S+58, 'bool'],
+      ['vox', 'VOX level', S+2, rng(1,9,1,String)],
+      ['voxdlytime', 'VOX delay', S+32, rng(500,2000,100,x=>x+' ms')],
+      ['tone', 'Repeater tone burst', S+29, ['1000 Hz','1450 Hz','1750 Hz','2100 Hz']],
+      ['tailclear', 'Squelch tail elimination', S+20, 'bool'],
+      ['rpttailclear', 'Repeater tail clear', S+21, rng(0,1000,100,x=>x+' ms')],
+      ['rpttaildet', 'Repeater tail detect', S+22, rng(0,1000,100,x=>x+' ms')],
+      ['alarmmode', 'Alarm mode', S+17, ['Local','Send Tone','Send Code']],
+      ['alarmtone', 'Sound alarm locally', S+18, 'bool'],
+    ]],
+    ['DTMF', [
+      ['pttdly', 'Send ID delay', S+12, rng(100,3000,100,x=>x+' ms')],
+      ['hangup', 'Hang-up time', S+57, rng(3,10,1,x=>x+' s')],
+      ['dtmfon', 'DTMF tone length', 0x8080+7, ['50 ms','100 ms','200 ms','300 ms','400 ms','500 ms']],
+      ['dtmfoff', 'DTMF gap length', 0x8080+8, ['50 ms','100 ms','200 ms','300 ms','400 ms','500 ms']],
+      ['aniid', 'When to send ANI ID', [0x8080+6, 'b2'], PTTID],
+      ['separatecode', 'Separate code', 0x8080+9, ['A','B','C','D','*','#']],
+      ['groupcallcode', 'Group call code', 0x8080+10, ['Off','A','B','C','D','*','#']],
+    ]],
+  ];
+  function rawGet(img, loc) {
+    if (Array.isArray(loc)) { const b = img[loc[0]]; return loc[1] === 'lo' ? b & 15 : loc[1] === 'hi' ? b >> 4 : b & 3; }
+    return img[loc];
+  }
+  function rawSet(img, loc, v) {
+    if (Array.isArray(loc)) {
+      const o = loc[0], b = img[o];
+      img[o] = loc[1] === 'lo' ? (b & 0xF0) | (v & 15) : loc[1] === 'hi' ? (b & 0x0F) | ((v & 15) << 4) : (b & 0xFC) | (v & 3);
+    } else img[loc] = v;
+  }
+
+  // DTMF code strings (ANI at 0x8080 len 5, PTT-ID list 20x16 at 0x80A0 code[5] name[10])
+  function codeGet(img, o, len) { let s = ''; for (let i = 0; i < len; i++) { const b = img[o+i]; if (b < 0x10) s += DTMF[b]; else if (b < 0x1F) {} } return s; }
+  function codeSet(img, o, len, s) {
+    s = s.toUpperCase();
+    for (const c of s) if (!DTMF.includes(c)) throw new Error(`"${c}" is not a DTMF digit (0-9, A-D, *, #)`);
+    if (s.length > len) throw new Error(`Max ${len} digits`);
+    for (let i = 0; i < len; i++) img[o+i] = i < s.length ? DTMF.indexOf(s[i]) : 0xFF;
+  }
+  let gbDecoder = null; try { gbDecoder = new TextDecoder('gb18030'); } catch (e) {}
+  function nameGet(img, o, len) {
+    const bytes = []; for (let i = 0; i < len; i++) { const b = img[o+i]; if (b === 0 || b === 0xFF) break; bytes.push(b); }
+    try { return gbDecoder ? gbDecoder.decode(new Uint8Array(bytes)).trim() : String.fromCharCode(...bytes); } catch (e) { return ''; }
+  }
+  function nameSet(img, o, len, s) {
+    if (/[^\x20-\x7e]/.test(s)) throw new Error('Only plain ASCII names can be written from here');
+    for (let i = 0; i < len; i++) img[o+i] = i < s.length ? s.charCodeAt(i) : 0xFF;
+  }
+
+  // ---- VFO A/B (0x8000, 0x8020) ----
+  const VFO_STEPS = ['2.5','5.0','6.25','10.0','12.5','20.0','25.0','50.0'];
+  const SHIFTS = ['Off','+','-'];
+  function vfoGet(img, which) {
+    const o = 0x8000 + which * 32;
+    let f = 0; for (let i = 0; i < 8; i++) f = f * 10 + (img[o+i] > 9 ? 0 : img[o+i]);
+    let off = 0; for (let i = 0; i < 6; i++) off = off * 10 + (img[o+20+i] > 9 ? 0 : img[o+20+i]);
+    const cl = (v, n) => v < n ? v : 0;
+    return { freq: f * 10, rxTone: decodeTone(u16(img,o+8)), txTone: decodeTone(u16(img,o+10)),
+      shift: cl(img[o+14] >> 5, 3), offset: off * 1000, power: cl(img[o+16], 2), wide: (img[o+17] >> 6) & 1, step: cl(img[o+19], VFO_STEPS.length) };
+  }
+  function vfoSet(img, which, v) {
+    const o = 0x8000 + which * 32;
+    let f = Math.round(v.freq / 10); for (let i = 7; i >= 0; i--) { img[o+i] = f % 10; f = Math.floor(f / 10); }
+    let off = Math.round(v.offset / 1000); for (let i = 5; i >= 0; i--) { img[o+20+i] = off % 10; off = Math.floor(off / 10); }
+    setU16(img, o+8, encodeTone(v.rxTone)); setU16(img, o+10, encodeTone(v.txTone));
+    img[o+14] = (img[o+14] & 0x1F) | (v.shift << 5);
+    img[o+16] = v.power;
+    img[o+17] = (img[o+17] & ~0x40) | (v.wide << 6);
+    img[o+19] = v.step;
+  }
+
+  // ---- CHIRP .img container ----
+  function parseImg(buf) {
+    const b = new Uint8Array(buf);
+    let idx = -1;
+    outer: for (let i = 0; i <= b.length - IMG_MAGIC.length; i++) { for (let j = 0; j < IMG_MAGIC.length; j++) if (b[i+j] !== IMG_MAGIC[j]) continue outer; idx = i; break; }
+    let meta = {};
+    const data = idx >= 0 ? b.slice(0, idx) : b.slice();
+    if (idx >= 0) { try { meta = JSON.parse(atob(new TextDecoder().decode(b.slice(idx + IMG_MAGIC.length)))); } catch (e) {} }
+    if (data.length !== MEM_TOTAL) throw new Error(`This file holds ${data.length} bytes; a UV-5R Mini image is ${MEM_TOTAL} bytes. Is it from a different radio model?`);
+    return { data, meta };
+  }
+  function buildImg(data) {
+    const meta = { rclass: 'UV5RMini', vendor: 'Baofeng', model: 'UV-5R Mini', variant: '', chirp_version: 'webprog-1.0' };
+    const b64 = new TextEncoder().encode(btoa(JSON.stringify(meta)));
+    const out = new Uint8Array(data.length + IMG_MAGIC.length + b64.length);
+    out.set(data, 0); out.set(IMG_MAGIC, data.length); out.set(b64, data.length + IMG_MAGIC.length);
+    return out;
+  }
+
+  // ---- clone protocol over a transport {write(Uint8Array), read(n, ms), flush(), isBle} ----
+  const ascii = s => new Uint8Array([...s].map(c => c.charCodeAt(0)));
+  const frame = (cmd, addr, len, data) => { const f = new Uint8Array(4 + (data ? data.length : 0)); f[0] = cmd; f[1] = addr >> 8; f[2] = addr & 255; f[3] = len; if (data) f.set(data, 4); return f; };
+  const printable = b => [...b].map(x => x >= 32 && x < 127 ? String.fromCharCode(x) : '').join('').trim();
+
+  async function ident(t, log) {
+    let lastErr;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await t.flush();
+        log(`Sending program-mode handshake (try ${attempt})`);
+        await t.write(ascii(IDENT));
+        const ack = await t.read(1, 2000);
+        if (ack[0] !== 0x06) throw new Error(`Radio answered 0x${ack[0].toString(16)} instead of ACK. It may be a different model or firmware.`);
+        const info = {};
+        for (const [magic, len] of MAGICS) {
+          await t.write(new Uint8Array(magic));
+          let resp;
+          try { resp = await t.read(len, 2000); } catch (e) { resp = e.partial || new Uint8Array(); log(`Short reply to 0x${magic[0].toString(16)} (${resp.length}/${len} bytes)`); }
+          if (magic[0] === 0x4d) info.model = printable(resp);
+          if (magic[0] === 0x46) info.f = [...resp].map(x => x.toString(16).padStart(2,'0')).join(' ');
+        }
+        log(`Radio identified: ${info.model || 'unknown ID'}`);
+        return info;
+      } catch (e) { lastErr = e; log('Handshake failed: ' + e.message); await new Promise(r => setTimeout(r, 400)); }
+    }
+    throw new Error('The radio did not answer the programming handshake. Check that Bluetooth is on in the radio menu and the radio is on the main screen. If you just finished a read or write, turn the radio off and on, then reconnect. ' + (lastErr ? `(${lastErr.message})` : ''));
+  }
+
+  async function download(t, progress, log) {
+    const info = await ident(t, log);
+    const out = new Uint8Array(MEM_TOTAL);
+    const total = REGIONS.reduce((a, [, s]) => a + s / READ_BLOCK, 0);
+    let pos = 0, n = 0;
+    for (const [start, size] of REGIONS) {
+      for (let addr = start; addr < start + size; addr += READ_BLOCK) {
+        let resp;
+        for (let tries = 0; ; tries++) {
+          try {
+            await t.write(frame(0x52, addr, READ_BLOCK));
+            resp = await t.read(READ_BLOCK + 4, 3000);
+            break;
+          } catch (e) {
+            if (tries >= 2) throw new Error(`Radio stopped answering at address 0x${addr.toString(16)}: ${e.message}`);
+            log(`Retrying block 0x${addr.toString(16)}`); await t.flush();
+          }
+        }
+        out.set(crypt(resp.slice(4)), pos); pos += READ_BLOCK; n++;
+        progress(n / total, `Reading 0x${addr.toString(16).padStart(4,'0')}`);
+      }
+    }
+    return { data: out, info };
+  }
+
+  async function upload(t, data, progress, log) {
+    const info = await ident(t, log);
+    const bs = t.isBle ? BLE_WRITE_BLOCK : USB_WRITE_BLOCK;
+    log(`Writing with ${bs}-byte blocks over ${t.isBle ? 'Bluetooth' : 'USB'}`);
+    const total = REGIONS.reduce((a, [, s]) => a + Math.ceil(s / bs), 0);
+    let dp = 0, n = 0;
+    for (const [start, size] of REGIONS) {
+      for (let addr = start; addr < start + size; addr += bs) {
+        const cnt = Math.min(bs, start + size - addr);
+        const blk = new Uint8Array(bs).fill(0xFF);
+        blk.set(data.slice(dp, dp + cnt), 0); dp += cnt;
+        await t.write(frame(0x57, addr, bs, crypt(blk)));
+        const ack = await t.read(1, 3000).catch(e => { throw new Error(`No acknowledgement for block 0x${addr.toString(16)}: ${e.message}`); });
+        if (ack[0] !== 0x06) throw new Error(`Radio rejected block 0x${addr.toString(16)} (got 0x${ack[0].toString(16)})`);
+        n++; progress(n / total, `Writing 0x${addr.toString(16).padStart(4,'0')}`);
+      }
+    }
+    return info;
+  }
+
+  return { MEM_TOTAL, REGIONS, CHANNELS, CTCSS, DCS, RX_BANDS, AIRBAND, POWER, PTTID, SCODES, SETTINGS, VFO_STEPS, SHIFTS, IDENT, MAGICS,
+    crypt, decodeChannel, encodeChannel, decodeTone, encodeTone, toneStr, parseTone, inBands, toChirpTones, fromChirpTones,
+    rawGet, rawSet, codeGet, codeSet, nameGet, nameSet, vfoGet, vfoSet, parseImg, buildImg, download, upload };
+})();
+if (typeof module !== 'undefined') module.exports = MINI;
+
+</script>
+<script>
+// ===== Byte stream buffer shared by all transports =====
+class RxBuffer {
+  constructor() { this.buf = []; this.waiter = null; }
+  push(bytes) { for (const b of bytes) this.buf.push(b); if (this.waiter) this.waiter(); }
+  clear() { this.buf = []; }
+  read(n, ms) {
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        if (this.buf.length >= n) { clearTimeout(timer); this.waiter = null; resolve(new Uint8Array(this.buf.splice(0, n))); }
+      };
+      const timer = setTimeout(() => {
+        this.waiter = null;
+        const e = new Error(`timed out waiting for ${n} bytes (got ${this.buf.length})`);
+        e.partial = new Uint8Array(this.buf.splice(0, this.buf.length));
+        reject(e);
+      }, ms);
+      this.waiter = check; check();
+    });
+  }
+}
+
+// ===== Simulated UV-5R Mini (speaks the same clone protocol) =====
+class MockRadioTransport {
+  constructor(MINI, image, opts = {}) {
+    this.M = MINI; this.isBle = opts.ble !== false; this.label = 'Demo radio (simulated)';
+    this.rx = new RxBuffer(); this.pending = []; this.mode = 'idle'; this.latency = opts.latency ?? 4;
+    // radio address space
+    this.mem = new Map();
+    let p = 0;
+    for (const [start, size] of MINI.REGIONS) { for (let i = 0; i < size; i++) this.mem.set(start + i, image[p++]); }
+  }
+  async connect() { return this; }
+  async disconnect() {}
+  async flush() { await new Promise(r => setTimeout(r, 5)); this.rx.clear(); }
+  read(n, ms) { return this.rx.read(n, ms); }
+  reply(bytes) { setTimeout(() => this.rx.push(bytes), this.latency); }
+  async write(bytes) {
+    // the real radio receives a byte stream; emulate by buffering and parsing
+    this.pending.push(...bytes);
+    this.parse();
+  }
+  parse() {
+    const M = this.M, p = this.pending;
+    const str = String.fromCharCode(...p);
+    if (this.mode === 'idle') {
+      if (str.startsWith(M.IDENT)) { p.splice(0, 16); this.mode = 'prog'; this.reply([0x06]); }
+      else if (p.length > 16) p.splice(0, p.length - 16);
+      return;
+    }
+    while (p.length) {
+      if (p[0] === 0x50) { if (p.length < 16) return; if (String.fromCharCode(...p.slice(0,16)) === M.IDENT) { p.splice(0,16); this.reply([0x06]); continue; } }
+      if (p[0] === 0x46) { p.shift(); this.reply([0x06, ...Array(15).fill(0)]); continue; }
+      if (p[0] === 0x4d) { p.shift(); this.reply([...'5RMINI  +L00000'].map(c => c.charCodeAt(0))); continue; }
+      if (p[0] === 0x53) { const m = M.MAGICS[2][0]; if (p.length < m.length) return; p.splice(0, m.length); this.reply([0x06]); continue; }
+      if (p[0] === 0x52) {
+        if (p.length < 4) return;
+        const addr = (p[1] << 8) | p[2], len = p[3]; p.splice(0, 4);
+        const d = new Uint8Array(len); for (let i = 0; i < len; i++) d[i] = this.mem.get(addr + i) ?? 0xFF;
+        this.reply([0x52, addr >> 8, addr & 255, len, ...M.crypt(d)]); continue;
+      }
+      if (p[0] === 0x57) {
+        if (p.length < 4) return;
+        const len = p[3]; if (p.length < 4 + len) return;
+        const addr = (p[1] << 8) | p[2]; const d = M.crypt(new Uint8Array(p.slice(4, 4 + len))); p.splice(0, 4 + len);
+        for (let i = 0; i < len; i++) this.mem.set(addr + i, d[i]);
+        this.reply([0x06]); continue;
+      }
+      p.shift(); // junk
+    }
+  }
+  image() { const out = new Uint8Array(this.M.MEM_TOTAL); let q = 0; for (const [s, n] of this.M.REGIONS) for (let i = 0; i < n; i++) out[q++] = this.mem.get(s + i); return out; }
+}
+if (typeof module !== 'undefined') module.exports = { RxBuffer, MockRadioTransport };
+
+</script>
+<script>
+const SAMPLE_B64 = "ACVJFAAlSRQAAAAAAAAABP////8AAAAAAAAAAAAAAAAAJUUUACVFFAAAAAABAAAE/////wAAAAAAAAAAAAAAAAAlURQAJVEUAAAAAAIAAAT/////AAAAAAAAAAAAAAAAACVVFAAlVRQAAAAAAwAABP////8AAAAAAAAAAAAAAAAAhVkUAIVZFAAAAAAEAAAE/////wAAAAAAAAAAAAAAAAAlAkMAJQJDAAAAAAUAAAT/////AAAAAAAAAAAAAAAAACUSQwAlEkMAAAAABgAABP////8AAAAAAAAAAAAAAAAAJSJDACUiQwAAAAAHAAAE/////wAAAAAAAAAAAAAAAAAlMkMAJTJDAAAAAAgAAAT/////AAAAAAAAAAAAAAAAACVCQwAlQkMAAAAACQAABP////8AAAAAAAAAAAAAAAAAJVJDACVSQwAAAAAKAAAE/////wAAAAAAAAAAAAAAAAAlYkMAJWJDAAAAAAsAAAT/////AAAAAAAAAAAAAAAAACVyQwAlckMAAAAADAAABP////8AAAAAAAAAAAAAAAAAJYJDACWCQwAAAAANAAAE/////wAAAAAAAAAAAAAAAAAlkkMAJZJDAAAAAA4AAAT/////AAAAAAAAAAAAAAAAAHWZQwB1mUMAAAAADwAABP////8AAAAAAAAAAAAAAAAAJRVDACUVQwAAAAAQAAEE/////wAAAAAAAAAAAAAAAAAlJUMAJSVDAAAAABEAAQT/////AAAAAAAAAAAAAAAAACU1QwAlNUMAAAAAEgABBP////8AAAAAAAAAAAAAAAAAJUVDACVFQwAAAAATAAEE/////wAAAAAAAAAAAAAAAAAlVUMAJVVDAAAAAAAAAQT/////AAAAAAAAAAAAAAAA//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////8DBQABAgUAAAAAAAD/AAAAAAAAAAAAAAAAAAAA/////wEEBQUCBwUAAAAAAP8AAAAAAAAAAAAAAAAAAAD/////AwEEAQAIAQEAAAEABQAAAAAAAQABBQUAAAARAAACAAAGAQAAAAAAAAAAAACQAdYBAAAHAAAAAAEAAQAAAAAAAAEAAP////8BAQQG////////////////////////////AQAB//+zydSxMf///////wEAAv//s8nUsTL///////8BAAP//7PJ1LEz////////AQAE//+zydSxNP///////wEABf//s8nUsTX///////8BAAb//7PJ1LE2////////AQAH//+zydSxN////////wEACP//s8nUsTj///////8BAAn//7PJ1LE5////////AQEA//+zydSxMTD//////wEBAf//s8nUsTEx//////8BAQL//7PJ1LExMv//////AQED//+zydSxMTP//////wEBBP//s8nUsTE0//////8BAQX//7PJ1LExNf//////AQEG//+zydSxMTb//////wEBB///s8nUsTE3//////8BAQj//7PJ1LExOP//////AQEJ//+zydSxMTn//////wECAP//s8nUsTIw/////////////////////////////////////////////////wECAwQF//////////////8FBAMCAf////////////////////////////////////////////////////////8=";
+(() => {
+const M = MINI;
+const $ = id => document.getElementById(id);
+const b64ToBytes = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const bytesToB64 = b => { let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+// ---------- state ----------
+const state = {
+  img: b64ToBytes(SAMPLE_B64), source: 'sample', fromRadio: false, backup: null,
+  dirtyCh: new Set(), dirtyOther: new Set(), transport: null, busy: false,
+  page: 0, showEmpty: false, query: '', radioId: '',
+};
+
+// ---------- logging / ui helpers ----------
+function log(msg, cls) {
+  const el = $('log'); const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`; el.appendChild(line); el.scrollTop = el.scrollHeight;
+}
+let toastTimer;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 3200); }
+function showError(msg) { const e = $('errBox'); if (!msg) { e.hidden = true; return; } e.innerHTML = ''; const b = document.createElement('b'); b.textContent = 'Something went wrong. '; e.append(b, msg); e.hidden = false; log(msg, 'e'); }
+function progress(frac, label) {
+  $('progWrap').hidden = frac == null;
+  if (frac == null) return;
+  $('progBar').style.width = (frac * 100).toFixed(1) + '%'; $('progPct').textContent = Math.round(frac * 100) + '%';
+  if (label) $('progLabel').textContent = label;
+}
+function saveFile(bytes, name, type) {
+  const blob = new Blob([bytes], { type: type || 'application/octet-stream' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+const fmtMHz = hz => (hz / 1e6).toFixed(5).replace(/0{1,2}$/, '');
+function parseMHz(s) {
+  s = String(s).trim().replace(',', '.'); if (!s) return null;
+  const v = parseFloat(s); if (isNaN(v)) throw new Error(`"${s}" is not a frequency in MHz`);
+  return Math.round((v < 1000 ? v * 1e6 : v) / 10) * 10;
+}
+
+// ---------- transports ----------
+const UART_SERVICES = [0xffe0, 0xff00, 0xfff0, 0xffb0, 0xae30, 0x18f0, '49535343-fe7d-4ae5-8fa9-9fafd205e455', '6e400001-b5a3-f393-e0a9-e50e24dcca9e'];
+class BleTransport {
+  constructor() { this.isBle = true; this.rx = new RxBuffer(); }
+  async connect() {
+    if (!navigator.bluetooth) throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge on desktop or Android, or Bluefy on iPhone.');
+    const opts = $('optAll').checked
+      ? { acceptAllDevices: true, optionalServices: UART_SERVICES }
+      : { filters: [{ namePrefix: 'walkie' }, { namePrefix: 'Walkie' }, { namePrefix: 'UV' }, { namePrefix: 'BF' }, { namePrefix: 'Baofeng' }, { services: [0xffe0] }], optionalServices: UART_SERVICES };
+    log('Opening the browser pairing window');
+    this.device = await navigator.bluetooth.requestDevice(opts);
+    this.label = this.device.name || 'Bluetooth radio';
+    this.device.addEventListener('gattserverdisconnected', () => onDisconnected(this));
+    log(`Connecting to "${this.label}"`);
+    const server = await this.device.gatt.connect();
+    const services = await server.getPrimaryServices();
+    let chars = [];
+    for (const s of services) { try { for (const c of await s.getCharacteristics()) chars.push(c); } catch (e) {} }
+    log('Characteristics: ' + chars.map(c => c.uuid.slice(4, 8) + '[' + ['read','write','writeWithoutResponse','notify','indicate'].filter(p => c.properties[p]).join(',') + ']').join(' '));
+    const ffe1 = chars.find(c => c.uuid.startsWith('0000ffe1'));
+    this.notifyChar = ffe1 && (ffe1.properties.notify || ffe1.properties.indicate) ? ffe1 : chars.find(c => c.properties.notify || c.properties.indicate);
+    this.writeChar = ffe1 && (ffe1.properties.write || ffe1.properties.writeWithoutResponse) ? ffe1 : chars.find(c => c.properties.writeWithoutResponse || c.properties.write);
+    if (!this.notifyChar || !this.writeChar) { this.device.gatt.disconnect(); throw new Error('Connected, but found no serial data channel on this device. Is it the radio? Try "Show every nearby device" in Log ▸ Bluetooth tuning.'); }
+    this.notifyChar.addEventListener('characteristicvaluechanged', e => { const v = e.target.value; this.rx.push(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)); });
+    await this.notifyChar.startNotifications();
+    log(`Serial channel ready (write ${this.writeChar.uuid.slice(4, 8)}, notify ${this.notifyChar.uuid.slice(4, 8)})`, 'o');
+    return this;
+  }
+  async write(bytes) {
+    const chunk = Math.max(16, Math.min(244, parseInt($('optChunk').value, 10) || 20));
+    const delay = Math.max(0, parseInt($('optDelay').value, 10) || 0);
+    const ack = $('optResp').checked || !this.writeChar.properties.writeWithoutResponse;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      const part = bytes.slice(i, i + chunk);
+      if (ack) await (this.writeChar.writeValueWithResponse ? this.writeChar.writeValueWithResponse(part) : this.writeChar.writeValue(part));
+      else await (this.writeChar.writeValueWithoutResponse ? this.writeChar.writeValueWithoutResponse(part) : this.writeChar.writeValue(part));
+      if (delay) await sleep(delay);
+    }
+  }
+  read(n, ms) { return this.rx.read(n, ms); }
+  async flush() { await sleep(60); this.rx.clear(); }
+  async disconnect() { try { await this.notifyChar?.stopNotifications(); } catch (e) {} try { this.device?.gatt.disconnect(); } catch (e) {} }
+}
+class SerialTransport {
+  constructor() { this.isBle = false; this.rx = new RxBuffer(); this.label = 'USB cable'; }
+  async connect() {
+    if (!navigator.serial) throw new Error('This browser has no Web Serial. Use Chrome or Edge on a desktop computer.');
+    this.port = await navigator.serial.requestPort();
+    await this.port.open({ baudRate: 115200 });
+    this.reading = true;
+    (async () => {
+      while (this.reading && this.port.readable) {
+        this.reader = this.port.readable.getReader();
+        try { for (;;) { const { value, done } = await this.reader.read(); if (done) break; if (value) this.rx.push(value); } }
+        catch (e) { if (this.reading) log('Serial read error: ' + e.message, 'e'); }
+        finally { this.reader.releaseLock(); }
+      }
+    })();
+    log('USB serial port open at 115200 baud', 'o');
+    return this;
+  }
+  async write(bytes) { const w = this.port.writable.getWriter(); try { await w.write(bytes); } finally { w.releaseLock(); } }
+  read(n, ms) { return this.rx.read(n, ms); }
+  async flush() { await sleep(30); this.rx.clear(); }
+  async disconnect() { this.reading = false; try { await this.reader?.cancel(); } catch (e) {} try { await this.port?.close(); } catch (e) {} onDisconnected(this); }
+}
+
+function onDisconnected(t) {
+  if (state.transport !== t) return;
+  state.transport = null; log('Radio disconnected', 'e'); updateChrome();
+  if (state.busy) showError('The Bluetooth link dropped during the transfer. Turn the radio off and on, reconnect, and try again.');
+}
+
+async function connect(kind) {
+  showError(null);
+  if (state.transport) await state.transport.disconnect();
+  let t;
+  try {
+    if (kind === 'demo') { t = new MockRadioTransport(M, b64ToBytes(SAMPLE_B64), { ble: true, latency: 3 }); log('Connected to the simulated radio', 'o'); }
+    else t = await (kind === 'ble' ? new BleTransport() : new SerialTransport()).connect();
+  } catch (e) {
+    if (e.name === 'NotFoundError') { log('Pairing cancelled'); return; }
+    if (e.name === 'SecurityError') return showError('The browser blocked device access. Open this page directly over HTTPS or localhost, not inside another page.');
+    return showError(e.message);
+  }
+  state.transport = t; state.radioId = ''; updateChrome();
+}
+
+async function runClone(dir) {
+  const t = state.transport; if (!t || state.busy) return;
+  state.busy = true; showError(null); updateChrome();
+  const t0 = performance.now();
+  try {
+    progress(0, dir === 'read' ? 'Handshaking…' : 'Handshaking…');
+    if (dir === 'read') {
+      const { data, info } = await M.download(t, progress, log);
+      state.radioId = info.model || '';
+      state.img = data; state.backup = data.slice(); state.source = 'radio'; state.fromRadio = true;
+      state.dirtyCh.clear(); state.dirtyOther.clear();
+      store.set('uv5rmini.backup', JSON.stringify({ when: new Date().toISOString(), id: state.radioId, b64: bytesToB64(data) }));
+      log(`Read complete in ${((performance.now() - t0) / 1000).toFixed(1)} s`, 'o');
+      toast(`Read ${countUsed()} channels from the radio`);
+      renderAll();
+    } else {
+      const info = await M.upload(t, state.img, progress, log);
+      state.radioId = info.model || state.radioId;
+      state.dirtyCh.clear(); state.dirtyOther.clear(); state.backup = state.img.slice();
+      log(`Write complete in ${((performance.now() - t0) / 1000).toFixed(1)} s. The radio may restart.`, 'o');
+      toast('Written. The radio restarts with the new settings.');
+      renderAll();
+    }
+    progress(null);
+  } catch (e) {
+    progress(null); showError(e.message);
+  } finally { state.busy = false; updateChrome(); }
+}
+
+// ---------- chrome / steps ----------
+function countUsed() { let n = 0; for (let i = 1; i <= M.CHANNELS; i++) if (state.img[(i - 1) * 32] !== 0xFF) n++; return n; }
+function updateChrome() {
+  const t = state.transport, busy = state.busy;
+  const pill = $('connPill');
+  pill.className = 'pill' + (busy ? ' busy' : t ? ' on' : '');
+  pill.textContent = busy ? 'Transferring…' : t ? `Connected · ${t.label}` : 'Not connected';
+  $('lcdLink').textContent = t ? (t.isBle ? 'BT LINK' : 'USB LINK') : 'NO LINK';
+  $('lcdModel').textContent = (state.radioId || '——————').trim();
+  $('lcdCount').textContent = String(countUsed()).padStart(3, '0');
+  $('tabCount').textContent = countUsed();
+  ['btnBle', 'btnUsb', 'btnDemo', 'btnOpen'].forEach(id => $(id).disabled = busy);
+  $('btnRead').disabled = !t || busy;
+  $('btnWrite').disabled = !t || busy;
+  $('btnRead').className = 'btn' + (t && !state.fromRadio ? ' primary' : '');
+  const dirty = state.dirtyCh.size + state.dirtyOther.size;
+  $('btnWrite').className = 'btn' + (t && state.fromRadio && dirty ? ' primary' : '');
+  $('writeHint').textContent = !state.fromRadio ? 'Read from the radio first, so you have a backup of what is on it.'
+    : dirty ? `${dirty} unsaved change${dirty > 1 ? 's' : ''} ready to send.` : 'No changes yet. Edit channels or settings to send them.';
+  const steps = [!!t, state.fromRadio, dirty > 0 || state.source === 'file', false];
+  const cur = !t ? 0 : !state.fromRadio && state.source !== 'file' ? 1 : dirty || state.source === 'file' ? 3 : 2;
+  ['st1', 'st2', 'st3', 'st4'].forEach((id, i) => { $(id).classList.toggle('done', steps[i] && i !== cur); $(id).classList.toggle('current', i === cur); });
+  $('srcLabel').textContent = state.source === 'sample' ? 'Showing a sample image, not your radio' : state.source === 'radio' ? `From radio ${state.radioId}`.trim() : `From file ${state.fileName}`;
+}
+
+// ---------- channel grid ----------
+const PAGE = 100;
+function tonesDatalist() {
+  const dl = $('tones'); const opts = [...M.CTCSS.map(v => v.toFixed(1)), ...M.DCS.map(v => 'D' + String(v).padStart(3, '0') + 'N'), ...M.DCS.map(v => 'D' + String(v).padStart(3, '0') + 'I')];
+  dl.innerHTML = opts.map(o => `<option value="${o}">`).join('');
+}
+function shiftInfo(c) {
+  if (c.empty) return ['', ''];
+  if (c.tx == null) return ['RX only', 'rxonly'];
+  const d = c.tx - c.rx; if (!d) return ['Simplex', ''];
+  if (Math.abs(d) > 70e6) return ['Split', 'split'];
+  const k = Math.abs(d) >= 1e6 ? (Math.abs(d) / 1e6).toFixed(3).replace(/\.?0+$/, '') + ' MHz' : (Math.abs(d) / 1e3).toFixed(1).replace(/\.0$/, '') + ' kHz';
+  return [(d > 0 ? '+' : '−') + k, ''];
+}
+function visibleChannels() {
+  const q = state.query.trim().toLowerCase();
+  if (q) {
+    const out = [];
+    for (let n = 1; n <= M.CHANNELS; n++) { const c = M.decodeChannel(state.img, n); if (c.empty) continue;
+      if (c.name.toLowerCase().includes(q) || fmtMHz(c.rx).includes(q) || String(n) === q) out.push(c); }
+    return out;
+  }
+  const a = state.page * PAGE + 1, b = Math.min(M.CHANNELS, a + PAGE - 1), out = [];
+  for (let n = a; n <= b; n++) { const c = M.decodeChannel(state.img, n); if (!c.empty || state.showEmpty) out.push(c); }
+  return out;
+}
+function renderPages() {
+  const el = $('pages'); el.innerHTML = '';
+  for (let p = 0; p < 10; p++) {
+    const a = p * PAGE + 1, b = Math.min(999, a + PAGE - 1);
+    let has = false; for (let n = a; n <= b && !has; n++) has = state.img[(n - 1) * 32] !== 0xFF;
+    const btn = document.createElement('button'); btn.textContent = `${a}–${b}`; btn.type = 'button';
+    if (has) btn.classList.add('has');
+    btn.setAttribute('aria-current', String(p === state.page && !state.query));
+    btn.onclick = () => { state.page = p; state.query = ''; $('search').value = ''; renderGrid(); renderPages(); };
+    el.appendChild(btn);
+  }
+}
+const sel = (opts, v, cls) => `<select class="${cls || 'w-sel'}">${opts.map((o, i) => `<option value="${i}"${i === v ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function rowHtml(c) {
+  const e = c.empty, [sh, shc] = shiftInfo(c);
+  const isAM = !e && c.mode === 'AM';
+  return `<tr data-n="${c.n}" class="${e ? 'empty' : ''}${state.dirtyCh.has(c.n) ? ' dirty' : ''}">
+    <td>${c.n}</td>
+    <td><input type="text" class="w-name" data-k="name" maxlength="12" value="${e ? '' : esc(c.name)}" aria-label="Name"></td>
+    <td class="rxcell"><input type="text" class="w-freq f" data-k="rx" value="${e ? '' : fmtMHz(c.rx)}" placeholder="${e ? '—' : ''}" aria-label="RX frequency"></td>
+    <td><input type="text" class="w-freq f" data-k="tx" value="${e ? '' : c.tx == null ? 'off' : fmtMHz(c.tx)}" aria-label="TX frequency"></td>
+    <td><span class="shift ${shc}">${sh}</span></td>
+    <td><input type="text" class="w-tone f" data-k="rxTone" list="tones" value="${e ? '' : M.toneStr(c.rxTone)}" aria-label="RX tone"></td>
+    <td><input type="text" class="w-tone f" data-k="txTone" list="tones" value="${e ? '' : M.toneStr(c.txTone)}" aria-label="TX tone"></td>
+    <td>${sel(['High', 'Low'], e ? 0 : c.power).replace('<select', '<select data-k="power" aria-label="Power"')}</td>
+    <td>${isAM ? '<span class="shift">AM</span>' : sel(['FM', 'NFM'], e ? 0 : c.mode === 'NFM' ? 1 : 0).replace('<select', '<select data-k="mode" aria-label="Mode"')}</td>
+    <td class="c"><input type="checkbox" data-k="scan" ${e || c.scan ? 'checked' : ''} aria-label="Scan"></td>
+    <td class="c"><input type="checkbox" data-k="bcl" ${!e && c.bcl ? 'checked' : ''} aria-label="BCL"></td>
+    <td>${sel(M.PTTID, e ? 0 : c.pttid).replace('<select', '<select data-k="pttid" aria-label="PTT ID"')}</td>
+    <td>${sel(M.SCODES, e ? 0 : c.scode).replace('<select', '<select data-k="scode" aria-label="S-code"')}</td>
+    <td class="c"><input type="checkbox" data-k="fhss" ${!e && c.fhss ? 'checked' : ''} aria-label="FHSS"></td>
+    <td class="c"><input type="checkbox" data-k="sqmode" ${!e && c.sqmode ? 'checked' : ''} aria-label="RX DTMF"></td>
+    <td>${e ? '' : `<button class="x" data-act="clear" title="Clear channel ${c.n}" aria-label="Clear channel ${c.n}">✕</button>`}</td>
+  </tr>`;
+}
+function renderGrid() {
+  const list = visibleChannels();
+  $('gridBody').innerHTML = list.length ? list.map(rowHtml).join('')
+    : `<tr><td></td><td colspan="15" style="padding:18px 8px" class="muted">${state.query ? 'No channel matches that search.' : 'No channels in this range. Tick “Show empty slots” to add one.'}</td></tr>`;
+}
+function newChannel(n, rx) {
+  return { n, empty: false, rx, tx: rx, rxTone: { t: 'none' }, txTone: { t: 'none' }, scode: 0, pttid: 0, power: 0,
+    mode: M.inBands(rx, [M.AIRBAND]) ? 'AM' : 'FM', sqmode: 0, bcl: 0, scan: 1, fhss: 0, name: '' };
+}
+function commitChannel(c) {
+  if (!M.inBands(c.rx, M.RX_BANDS)) throw new Error(`${fmtMHz(c.rx)} MHz is outside the radio's receive ranges (108–174, 350–390, 400–520 MHz)`);
+  if (M.inBands(c.rx, [M.AIRBAND])) { c.mode = 'AM'; } else if (c.mode === 'AM') c.mode = 'FM';
+  if (/[^\x20-\x7e]/.test(c.name)) throw new Error('Names can use letters, digits and common symbols only');
+  M.encodeChannel(state.img, c); state.dirtyCh.add(c.n);
+}
+function onGridChange(ev) {
+  const inp = ev.target, k = inp.dataset.k; if (!k) return;
+  const tr = inp.closest('tr'), n = +tr.dataset.n;
+  let c = M.decodeChannel(state.img, n);
+  try {
+    if (c.empty) {
+      if (k !== 'rx') { if (inp.type === 'checkbox') inp.checked = k === 'scan'; else if (inp.tagName === 'INPUT') inp.value = ''; toast('Enter an RX frequency first'); return; }
+      const rx = parseMHz(inp.value); if (rx == null) return;
+      c = newChannel(n, rx);
+    } else {
+      const v = inp.type === 'checkbox' ? (inp.checked ? 1 : 0) : inp.value;
+      switch (k) {
+        case 'name': c.name = v.slice(0, 12); break;
+        case 'rx': { const rx = parseMHz(v); if (rx == null) throw new Error('Use ✕ to clear a channel'); const d = c.tx == null ? null : c.tx - c.rx; c.rx = rx; if (d != null && Math.abs(d) <= 70e6) c.tx = rx + d; break; }
+        case 'tx': { const s = String(v).trim().toLowerCase();
+          if (!s || s === 'off' || s === 'rx') c.tx = s === '' ? c.rx : null;
+          else if (/^[+-]/.test(s)) { const d = parseFloat(s); if (isNaN(d)) throw new Error('Shift must look like +0.6 or -5'); c.tx = Math.round((c.rx + d * 1e6) / 10) * 10; }
+          else c.tx = parseMHz(s); break; }
+        case 'rxTone': c.rxTone = M.parseTone(v); break;
+        case 'txTone': c.txTone = M.parseTone(v); break;
+        case 'mode': c.mode = +v ? 'NFM' : 'FM'; break;
+        case 'power': case 'pttid': case 'scode': c[k] = +v; break;
+        default: c[k] = +v;
+      }
+    }
+    commitChannel(c);
+    inp.classList.remove('bad'); inp.title = '';
+    const fresh = M.decodeChannel(state.img, n);
+    const tmp = document.createElement('tbody'); tmp.innerHTML = rowHtml(fresh); tr.replaceWith(tmp.firstElementChild);
+    renderPages(); updateChrome();
+  } catch (e) { inp.classList.add('bad'); inp.title = e.message; toast(e.message); }
+}
+function onGridClick(ev) {
+  const b = ev.target.closest('[data-act="clear"]'); if (!b) return;
+  const tr = b.closest('tr'), n = +tr.dataset.n;
+  M.encodeChannel(state.img, { n, empty: true }); state.dirtyCh.add(n);
+  renderGrid(); renderPages(); updateChrome(); toast(`Channel ${n} cleared`);
+}
+
+// ---------- settings / vfo / dtmf ----------
+function fieldEl(id, label, control, dirty) {
+  const d = document.createElement('div'); d.className = 'field' + (dirty ? ' dirty' : '');
+  const l = document.createElement('label'); l.htmlFor = id; l.textContent = label; control.id = id;
+  d.append(l, control); return d;
+}
+function selectEl(opts, v) { const s = document.createElement('select'); opts.forEach((o, i) => s.add(new Option(o, i, false, i === v))); if (v >= opts.length) s.add(new Option(`Unknown (${v})`, v, true, true)); return s; }
+function textEl(v, cls) { const i = document.createElement('input'); i.type = 'text'; i.value = v; if (cls) i.className = cls; return i; }
+function renderSettings() {
+  const root = $('settingsCards'); root.innerHTML = '';
+  for (const [group, items] of M.SETTINGS) {
+    if (group === 'DTMF') continue;
+    root.appendChild(settingsFieldset(group, items));
+  }
+}
+function settingsFieldset(group, items) {
+  const fs = document.createElement('fieldset'); const lg = document.createElement('legend'); lg.textContent = group; fs.appendChild(lg);
+  for (const [key, label, loc, opts] of items) {
+    const v = M.rawGet(state.img, loc); let ctl;
+    if (opts === 'bool') { ctl = document.createElement('input'); ctl.type = 'checkbox'; ctl.checked = !!v; }
+    else ctl = selectEl(opts, v);
+    ctl.addEventListener('change', () => { M.rawSet(state.img, loc, opts === 'bool' ? (ctl.checked ? 1 : 0) : +ctl.value); state.dirtyOther.add('s:' + key); ctl.parentElement.classList.add('dirty'); updateChrome(); });
+    fs.appendChild(fieldEl('set_' + key, label, ctl, state.dirtyOther.has('s:' + key)));
+  }
+  return fs;
+}
+function renderVfo() {
+  const root = $('vfoCards'); root.innerHTML = '';
+  ['A', 'B'].forEach((name, w) => {
+    const v = M.vfoGet(state.img, w);
+    const fs = document.createElement('fieldset'); const lg = document.createElement('legend'); lg.textContent = 'VFO ' + name; fs.appendChild(lg);
+    const mark = () => { state.dirtyOther.add('v:' + w); updateChrome(); };
+    const apply = (ctl, fn) => ctl.addEventListener('change', () => {
+      const cur = M.vfoGet(state.img, w);
+      try { fn(cur); M.vfoSet(state.img, w, cur); ctl.classList?.remove('bad'); ctl.parentElement.classList.add('dirty'); mark(); }
+      catch (e) { toast(e.message); ctl.classList?.add('bad'); }
+    });
+    const f = textEl(fmtMHz(v.freq), 'mono'); apply(f, c => { const hz = parseMHz(f.value); if (!M.inBands(hz, M.RX_BANDS)) throw new Error('Frequency is outside the radio ranges'); c.freq = hz; });
+    fs.appendChild(fieldEl(`vfo${w}f`, 'Frequency (MHz)', f));
+    const sh = selectEl(M.SHIFTS, v.shift); apply(sh, c => c.shift = +sh.value); fs.appendChild(fieldEl(`vfo${w}s`, 'Shift direction', sh));
+    const of = textEl((v.offset / 1e6).toFixed(3), 'mono'); apply(of, c => { const x = parseFloat(of.value); if (isNaN(x) || x < 0 || x > 999.999) throw new Error('Offset must be 0–999.999 MHz'); c.offset = Math.round(x * 1e3) * 1e3; });
+    fs.appendChild(fieldEl(`vfo${w}o`, 'Offset (MHz)', of));
+    const rt = textEl(M.toneStr(v.rxTone), 'mono'); rt.setAttribute('list', 'tones'); apply(rt, c => c.rxTone = M.parseTone(rt.value)); fs.appendChild(fieldEl(`vfo${w}rt`, 'RX tone', rt));
+    const tt = textEl(M.toneStr(v.txTone), 'mono'); tt.setAttribute('list', 'tones'); apply(tt, c => c.txTone = M.parseTone(tt.value)); fs.appendChild(fieldEl(`vfo${w}tt`, 'TX tone', tt));
+    const pw = selectEl(['High', 'Low'], v.power); apply(pw, c => c.power = +pw.value); fs.appendChild(fieldEl(`vfo${w}p`, 'Power', pw));
+    const bw = selectEl(['Wide', 'Narrow'], v.wide); apply(bw, c => c.wide = +bw.value); fs.appendChild(fieldEl(`vfo${w}b`, 'Bandwidth', bw));
+    const st = selectEl(M.VFO_STEPS.map(s => s + ' kHz'), v.step); apply(st, c => c.step = +st.value); fs.appendChild(fieldEl(`vfo${w}st`, 'Tuning step', st));
+    root.appendChild(fs);
+  });
+}
+function renderDtmf() {
+  const root = $('dtmfCards'); root.innerHTML = '';
+  const dt = M.SETTINGS.find(g => g[0] === 'DTMF');
+  const main = settingsFieldset('Signalling', dt[1]);
+  const ani = textEl(M.codeGet(state.img, 0x8080, 5), 'mono'); ani.maxLength = 5;
+  ani.addEventListener('change', () => { try { M.codeSet(state.img, 0x8080, 5, ani.value); ani.parentElement.classList.add('dirty'); state.dirtyOther.add('ani'); updateChrome(); } catch (e) { toast(e.message); } });
+  main.insertBefore(fieldEl('aniCode', 'ANI code (my ID)', ani), main.children[1]);
+  root.appendChild(main);
+  const fs = document.createElement('fieldset'); const lg = document.createElement('legend'); lg.textContent = 'PTT ID signal codes'; fs.appendChild(lg);
+  for (let i = 0; i < 20; i++) {
+    const o = 0x80A0 + i * 16;
+    const row = document.createElement('div'); row.className = 'field'; row.style.gridTemplateColumns = '28px minmax(0,1fr) minmax(0,1fr)';
+    const num = document.createElement('span'); num.className = 'mono muted'; num.textContent = i + 1;
+    const code = textEl(M.codeGet(state.img, o, 5), 'mono'); code.maxLength = 5; code.setAttribute('aria-label', `Signal code ${i + 1}`); code.id = 'pc' + i;
+    const nm = textEl(M.nameGet(state.img, o + 5, 10)); nm.maxLength = 10; nm.setAttribute('aria-label', `Signal code ${i + 1} name`); nm.id = 'pn' + i;
+    code.addEventListener('change', () => { try { M.codeSet(state.img, o, 5, code.value); state.dirtyOther.add('pc' + i); updateChrome(); } catch (e) { toast(e.message); } });
+    nm.addEventListener('change', () => { try { M.nameSet(state.img, o + 5, 10, nm.value); state.dirtyOther.add('pn' + i); updateChrome(); } catch (e) { toast(e.message); } });
+    [code, nm].forEach(x => { x.style.cssText = 'border:1px solid var(--line);background:var(--sunk);border-radius:6px;padding:6px 8px;width:100%'; });
+    row.append(num, code, nm); fs.appendChild(row);
+  }
+  root.appendChild(fs);
+}
+function renderAll() { renderPages(); renderGrid(); renderSettings(); renderVfo(); renderDtmf(); updateChrome(); }
+
+// ---------- files ----------
+const CSV_COLS = ['Location','Name','Frequency','Duplex','Offset','Tone','rToneFreq','cToneFreq','DtcsCode','DtcsPolarity','RxDtcsCode','CrossMode','Mode','TStep','Skip','Power','Comment','URCALL','RPT1CALL','RPT2CALL','DVCODE'];
+function exportCsv() {
+  const rows = [CSV_COLS.join(',')];
+  for (let n = 1; n <= M.CHANNELS; n++) {
+    const c = M.decodeChannel(state.img, n); if (c.empty) continue;
+    const t = M.toChirpTones(c);
+    let dup = '', off = 0;
+    if (c.tx == null) dup = 'off'; else if (Math.abs(c.tx - c.rx) > 70e6) { dup = 'split'; off = c.tx; } else if (c.tx > c.rx) { dup = '+'; off = c.tx - c.rx; } else if (c.tx < c.rx) { dup = '-'; off = c.rx - c.tx; }
+    const q = s => /[",]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    rows.push([n, q(c.name), (c.rx / 1e6).toFixed(6), dup, (off / 1e6).toFixed(6), t.Tone, t.rToneFreq, t.cToneFreq, t.DtcsCode, t.DtcsPolarity, t.RxDtcsCode, t.CrossMode,
+      c.mode, '5.00', c.scan ? '' : 'S', c.power ? '1.0W' : '5.0W', '', '', '', '', ''].join(','));
+  }
+  saveFile(new TextEncoder().encode(rows.join('\r\n') + '\r\n'), `UV-5R-Mini_${stamp()}.csv`, 'text/csv');
+  toast('CSV saved. It imports into CHIRP and back into this page.');
+}
+function parseCsvLine(line) { const out = []; let cur = '', q = false; for (let i = 0; i < line.length; i++) { const ch = line[i]; if (q) { if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch; } else if (ch === '"') q = true; else if (ch === ',') { out.push(cur); cur = ''; } else cur += ch; } out.push(cur); return out; }
+function importCsv(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim()); const head = parseCsvLine(lines.shift());
+  if (!head.includes('Frequency')) throw new Error('This CSV has no Frequency column. Export it from CHIRP or from this page.');
+  let ok = 0, skipped = [];
+  for (const line of lines) {
+    const cells = parseCsvLine(line); const r = {}; head.forEach((h, i) => r[h] = (cells[i] || '').trim());
+    const n = parseInt(r.Location, 10);
+    try {
+      if (!(n >= 1 && n <= M.CHANNELS)) throw new Error('location out of range');
+      const rx = parseMHz(r.Frequency); const c = newChannel(n, rx);
+      c.name = (r.Name || '').slice(0, 12).replace(/[^\x20-\x7e]/g, '');
+      const off = Math.round(parseFloat(r.Offset || '0') * 1e6);
+      c.tx = r.Duplex === 'off' ? null : r.Duplex === 'split' ? off : r.Duplex === '+' ? rx + off : r.Duplex === '-' ? rx - off : rx;
+      const t = M.fromChirpTones(r); c.txTone = t.tx; c.rxTone = t.rx;
+      c.mode = r.Mode === 'NFM' ? 'NFM' : r.Mode === 'AM' ? 'AM' : 'FM';
+      c.scan = r.Skip === 'S' ? 0 : 1;
+      const w = parseFloat(r.Power); c.power = !isNaN(w) && w < 3 ? 1 : 0;
+      commitChannel(c); ok++;
+    } catch (e) { skipped.push(`${r.Location || '?'} (${e.message})`); }
+  }
+  if (skipped.length) log('CSV rows skipped: ' + skipped.join('; '), 'e');
+  return `Imported ${ok} channel${ok === 1 ? '' : 's'} into the current image${skipped.length ? `, skipped ${skipped.length} (see Log)` : ''}`;
+}
+async function openFile(file) {
+  showError(null);
+  try {
+    const buf = await file.arrayBuffer();
+    if (/\.csv$/i.test(file.name)) { const msg = importCsv(new TextDecoder().decode(buf)); renderAll(); toast(msg); log(msg, 'o'); return; }
+    const { data, meta } = M.parseImg(buf);
+    if (meta.model && !/mini/i.test(meta.model)) log(`Note: file says model "${meta.model}". Layout matches, but check it before writing.`, 'e');
+    state.img = data; state.source = 'file'; state.fileName = file.name;
+    state.dirtyCh.clear(); state.dirtyOther.clear();
+    for (let n = 1; n <= M.CHANNELS; n++) if (data[(n - 1) * 32] !== 0xFF) state.dirtyCh.add(n);
+    state.dirtyOther.add('file');
+    renderAll(); toast(`Opened ${file.name}`); log(`Opened ${file.name}${meta.model ? ` (${meta.vendor} ${meta.model})` : ''}`, 'o');
+  } catch (e) { showError(e.message); }
+}
+
+// ---------- write confirmation ----------
+function askWrite() {
+  if (!state.transport) return;
+  const dirty = state.dirtyCh.size + state.dirtyOther.size;
+  const box = $('confirmText'); box.innerHTML = '';
+  const p = document.createElement('p'); p.style.margin = '0';
+  p.textContent = `This replaces every channel and setting on the radio with what is shown here (${countUsed()} channels${dirty ? `, ${state.dirtyCh.size} edited channel${state.dirtyCh.size === 1 ? '' : 's'}` : ''}). Keep the radio close and switched on until it finishes, about 20 seconds over Bluetooth.`;
+  box.appendChild(p);
+  if (!state.fromRadio) {
+    const w = document.createElement('p'); w.className = 'notice warn'; w.style.margin = '0';
+    w.textContent = state.source === 'sample' ? 'You are about to send the sample image, not channels from your radio. Read from the radio first if you want to keep what is on it.'
+      : 'You have not read from this radio yet, so there is no backup of what is on it now.';
+    box.appendChild(w);
+  }
+  $('btnBackup').hidden = !state.backup;
+  $('confirm').hidden = false; $('confirm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ---------- wiring ----------
+function initSupport() {
+  const notes = [];
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (!navigator.bluetooth) notes.push(ios ? 'Safari on iPhone and iPad has no Web Bluetooth. Open this page in the <b>Bluefy</b> browser instead.' : 'This browser has no Web Bluetooth. Use <b>Chrome</b>, <b>Edge</b> or <b>Opera</b> on desktop or Android.');
+  if (!window.isSecureContext) notes.push('This page is not on HTTPS or localhost, so the browser will refuse Bluetooth and USB access.');
+  if (window.top !== window.self) notes.push('This page is embedded in another page, which usually blocks Bluetooth. Open it directly in its own tab.');
+  if (!navigator.serial) $('btnUsb').title = 'Web Serial needs Chrome or Edge on desktop';
+  if (notes.length) { $('support').innerHTML = notes.join(' '); $('support').hidden = false; }
+}
+function init() {
+  tonesDatalist(); initSupport();
+  try { const o = JSON.parse(store.get('uv5rmini.opts') || '{}'); if (o.chunk) $('optChunk').value = o.chunk; if (o.delay) $('optDelay').value = o.delay; $('optAll').checked = !!o.all; $('optResp').checked = !!o.resp; } catch (e) {}
+  ['optChunk', 'optDelay', 'optAll', 'optResp'].forEach(id => $(id).addEventListener('change', () => store.set('uv5rmini.opts', JSON.stringify({ chunk: $('optChunk').value, delay: $('optDelay').value, all: $('optAll').checked, resp: $('optResp').checked }))));
+  $('btnBle').onclick = () => connect('ble');
+  $('btnUsb').onclick = () => connect('usb');
+  $('btnDemo').onclick = () => connect('demo');
+  $('btnRead').onclick = () => runClone('read');
+  $('btnWrite').onclick = askWrite;
+  $('btnConfirmWrite').onclick = () => { $('confirm').hidden = true; runClone('write'); };
+  $('btnCancelWrite').onclick = () => { $('confirm').hidden = true; };
+  $('btnBackup').onclick = () => { saveFile(M.buildImg(state.backup), `UV-5R-Mini_backup_${stamp()}.img`); toast('Backup saved'); };
+  $('btnOpen').onclick = () => $('fileIn').click();
+  $('fileIn').onchange = e => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; };
+  $('btnSave').onclick = () => { saveFile(M.buildImg(state.img), `UV-5R-Mini_${stamp()}.img`); toast('Image saved. Open it in CHIRP as Baofeng UV-5R Mini.'); };
+  $('btnCsv').onclick = exportCsv;
+  $('gridBody').addEventListener('change', onGridChange);
+  $('gridBody').addEventListener('click', onGridClick);
+  $('showEmpty').onchange = e => { state.showEmpty = e.target.checked; renderGrid(); };
+  let st; $('search').oninput = e => { clearTimeout(st); st = setTimeout(() => { state.query = e.target.value; renderGrid(); renderPages(); }, 150); };
+  document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+    document.querySelectorAll('.pane').forEach(p => p.hidden = p.dataset.pane !== t.dataset.tab);
+  });
+  $('btnCopyLog').onclick = () => { const txt = $('log').innerText; navigator.clipboard?.writeText(txt).then(() => toast('Log copied'), () => toast('Select the log text to copy it')); };
+  $('btnClearLog').onclick = () => { $('log').innerHTML = ''; };
+  window.addEventListener('beforeunload', e => { if (state.dirtyCh.size + state.dirtyOther.size && state.source !== 'sample') { e.preventDefault(); e.returnValue = ''; } });
+  const prev = store.get('uv5rmini.backup');
+  if (prev) { try { const p = JSON.parse(prev); log(`A backup from your last read (${p.id || 'radio'}, ${new Date(p.when).toLocaleString()}) is kept in this browser.`); state.backup = b64ToBytes(p.b64); } catch (e) {} }
+  log('Ready. Showing a sample image until you read a radio or open a file.');
+  renderAll();
+}
+init();
+})();
+</script>
+</body>
+</html>
