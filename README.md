@@ -40,7 +40,7 @@ Pick your radio from the **Radio model** list before connecting.
 | UV-25 / UV-25 Pro, UV-32 / UV-32 Pro | USB cable | Experimental |
 | UV-21Pro V2, UV-21Pro GPS | USB cable | Experimental |
 | 5RM, UV-5RM Plus, K6, BF-F8HP Pro | USB cable | Experimental |
-| BF-F8HP, UV-82HP | USB cable, 9600 baud | Experimental |
+| BF-F8HP, UV-82HP | USB cable, 9600 baud | ✅ Tested on a real radio |
 
 **Experimental** means the model's memory layout, settings and clone protocol come straight from CHIRP's driver and are checked byte for byte against CHIRP, but nobody has tested this programmer on that radio yet. Read first, save a backup `.img`, and please report how it went in a [GitHub issue](https://github.com/drexjj/FengRadioProgrammer/issues).
 
