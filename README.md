@@ -65,13 +65,6 @@ The USB cable option uses Web Serial and needs Chrome or Edge on a desktop compu
 - **The browser blocks Bluetooth.** The page must be opened over HTTPS or from `localhost`, in its own tab rather than embedded in another page.
 - **Anything else.** Open the **Log** tab, click **Copy log**, and paste it into a [GitHub issue](https://github.com/drexjj/FengRadioProgrammer/issues).
 
-## Running it yourself
-
-The whole programmer is a single file, `index.html`, with no build step or server code.
-
-- **GitHub Pages:** Settings ▸ Pages ▸ Deploy from a branch ▸ `main` ▸ `/ (root)`.
-- **On your own computer:** run `python3 -m http.server` in the folder and open `http://localhost:8000`.
-
 ## How it works
 
 The radio's Bluetooth module is a serial bridge (characteristic `FFE1`). The page speaks the same clone protocol as the USB cable:
@@ -96,4 +89,3 @@ This is a hobby project, not affiliated with Baofeng or CHIRP. Always save a bac
 
 GPL-3.0. See [LICENSE](LICENSE).
 
-73 de W9JES
