@@ -95,7 +95,7 @@ Each model is a profile generated from its CHIRP driver: memory regions, channel
 
 If you find this application valuable or have benefited from using it, please consider supporting my work. Every donation, big or small, helps us keep development going.
 
-💖 [Support My Work and Give Thanks](https://www.patreon.com/cw/RadioElectronicsHub) or make a one-time donation [here](https://www.paypal.com/donate/?hosted_button_id=SWPB76LVNUHEY) 💖
+💖 [Support My Work and Give Thanks](https://buymeacoffee.com/w9jes/membership) or make a one-time donation [here](https://www.paypal.com/donate/?hosted_button_id=SWPB76LVNUHEY) 💖
 
 Can't donate? No worries! Spreading the word and confirming more models also makes a big impact.
 
