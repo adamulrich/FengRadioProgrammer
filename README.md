@@ -91,6 +91,16 @@ The radio's Bluetooth module is a serial bridge (characteristic `FFE1`), so Blue
 
 Each model is a profile generated from its CHIRP driver: memory regions, channel layout, power levels, bands, and a byte-level table for every setting found by having CHIRP apply each option and recording what changed. The decoders and encoders are tested against CHIRP's own sample images for every model, and every model completes a read and write against a simulated radio.
 
+## 🌟 Support the Project
+
+If you find this application valuable or have benefited from using it, please consider supporting my work. Every donation, big or small, helps us keep development going.
+
+💖 [Support My Work and Give Thanks](https://www.patreon.com/cw/RadioElectronicsHub) or make a one-time donation [here](https://www.paypal.com/donate/?hosted_button_id=SWPB76LVNUHEY) 💖
+
+Can't donate? No worries! Spreading the word and confirming more models also makes a big impact.
+
+Thank you for your support!
+
 ## Disclaimer
 
 This is a hobby project, not affiliated with Baofeng or CHIRP. Always save a backup before writing to your radio. You are responsible for transmitting only on frequencies you are licensed for.
