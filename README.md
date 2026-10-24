@@ -32,7 +32,8 @@ Pick your radio from the **Radio model** list before connecting.
 |---|---|---|
 | UV-5R Mini, MINI-5 | Bluetooth or USB | ✅ Tested on a real radio |
 | UV-5RH | USB cable | ✅ Tested on a real radio |
-| UV-5R (and UV-5X, UV-5R EX, UV-5R Pro, UV-5XP, RT5R, A-5R) | USB cable, 9600 baud | ✅ Tested on a real radio |
+| UV-5RM Plus, AR-5RM | USB cable | ✅ Tested on a real radio |
+| UV-5R (and UV-5R8W, UV-5X, UV-5R EX, UV-5R Pro, UV-5XP, RT5R, A-5R) | USB cable, 9600 baud | ✅ Tested on a real radio |
 | UV-82 / UV-82 Pro | USB cable, 9600 baud | ✅ Tested on a real radio |
 | BF-F8HP, UV-82HP | USB cable, 9600 baud | ✅ Tested on a real radio |
 | UV-5G Mini | Bluetooth or USB | Experimental. GMRS channels 1–30 keep their fixed frequencies |
@@ -40,7 +41,7 @@ Pick your radio from the **Radio model** list before connecting.
 | UV-17Pro, UV-17Pro GPS, UV-17R Plus | USB cable | Experimental |
 | UV-25 / UV-25 Pro, UV-32 / UV-32 Pro | USB cable | Experimental |
 | UV-21Pro V2, UV-21Pro GPS | USB cable | Experimental |
-| 5RM, UV-5RM Plus, K6, BF-F8HP Pro | USB cable | Experimental |
+| 5RM, K6, BF-F8HP Pro | USB cable | Experimental |
 
 **Experimental** means the model's memory layout, settings and clone protocol come straight from CHIRP's driver and are checked byte for byte against CHIRP, but nobody has tested this programmer on that radio yet. Read first, save a backup `.img`, and please report how it went in a [GitHub issue](https://github.com/drexjj/FengRadioProgrammer/issues).
 
